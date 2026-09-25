@@ -248,6 +248,7 @@
     <div class="inner">
       <h1 id="resTitle">¡META!</h1>
       <div id="resStars" style="font-size:40px;text-align:center;margin:-4px 0 6px"></div>
+      <div id="unlockMsg" class="learnres" hidden style="text-align:center"></div>
       <div class="learnres" id="learnRes" hidden></div>
       <table id="resTable"></table>
       <div class="row"><button class="go" id="againBtn" style="font-size:18px">OTRA VEZ</button><button class="ghost" id="menuBtn">Menú</button></div>
@@ -346,17 +347,17 @@ function renderStarBadge() {
 /* ---------- Progresión: coches y armas que se desbloquean con estrellas
    (compartidas con FonoKart). ---------- */
 const KART_TIERS = [
-  { id: 'clasico', name: 'Clásico', mult: 1.00, need: 0 },
-  { id: 'turbo',   name: 'Turbo',   mult: 1.08, need: 15 },
-  { id: 'rayo',    name: 'Rayo',    mult: 1.16, need: 40 },
+  { id: 'clasico', name: 'Clásico', mult: 1.00, need: 0,  lore: 'Fiable de toda la vida.' },
+  { id: 'turbo',   name: 'Turbo',   mult: 1.08, need: 15, lore: 'El motor suena distinto ahora.' },
+  { id: 'rayo',    name: 'Rayo',    mult: 1.16, need: 40, lore: 'El más rápido del taller.' },
 ];
 const kartsUnlocked = () => KART_TIERS.filter(t => totalStars >= t.need);
 let kartTierId = store.get('kart', 'clasico');
 if (!kartsUnlocked().some(t => t.id === kartTierId)) kartTierId = 'clasico';
 
 const ITEM_UNLOCKS = [
-  { id: 'rayo',     name: 'Arma: Rayo',     icon: '🌩️', weight: 2, need: 10 },
-  { id: 'estrella', name: 'Arma: Estrella', icon: '⭐', weight: 2, need: 30 },
+  { id: 'rayo',     name: 'Arma: Rayo',     icon: '🌩️', weight: 2, need: 10, lore: 'Ya sabes aturdir a quien vaya delante.' },
+  { id: 'estrella', name: 'Arma: Estrella', icon: '⭐', weight: 2, need: 30, lore: 'Unos segundos en los que nada te para.' },
 ];
 function activeItems() {
   return ITEMS.concat(ITEM_UNLOCKS.filter(it => totalStars >= it.need));
@@ -1320,9 +1321,12 @@ function showResults() {
   });
   const p = r.indexOf(player) + 1;
   $('resTitle').textContent = p === 1 ? '¡HAS GANADO!' : p <= 3 ? `¡PODIO! ${p}º` : `LLEGAS ${p}º`;
-  const earned = starsFor(p, stats);
+  const earned = starsFor(p, stats), before = totalStars;
   totalStars += earned; store.set('stars', totalStars); renderStarBadge();
   $('resStars').textContent = '⭐'.repeat(earned) + '☆'.repeat(3 - earned);
+  const newly = [...KART_TIERS, ...ITEM_UNLOCKS].filter(x => x.need > before && x.need <= totalStars);
+  const un = $('unlockMsg');
+  if (newly.length) { un.innerHTML = newly.map(x => `🎉 <b>${x.name}</b> — ${x.lore}`).join('<br>'); un.hidden = false; } else un.hidden = true;
   const lr = $('learnRes');
   if (activity === 'espejo') {
     const [t, c] = curPair(), n = role => stats.filter(s => s.role === role).length, miss = stats.filter(s => !s.chosen).length;
