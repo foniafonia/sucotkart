@@ -1,0 +1,1 @@
+Sucot Kart: juego de karts en 3D para móvil, versión temática de Sucot de FonoKart Rally — actividades de logopedia con el alfabeto hebreo y vocabulario de la fiesta (lulav, etrog, sucá...). Se juega en https://foniafonia.github.io/sucotkart/
