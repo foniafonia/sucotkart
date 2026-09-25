@@ -591,6 +591,49 @@ const farFromTrack = (x, z, m) => { for (let i = 0; i < N; i += 4) { const dx = 
   }
 }
 
+// Sucás decorativas: pequeñas cabañas con tejado de ramas y frutas colgando,
+// como si se corriera entre las sucás del barrio en la fiesta.
+{
+  const N_SUCOT = 16;
+  const postG = new THREE.CylinderGeometry(0.28, 0.32, 4.6, 6);
+  const postM = new THREE.MeshLambertMaterial({ color: 0x8a5a36 });
+  const roofG = new THREE.BoxGeometry(6.6, 0.5, 6.6);
+  const roofM = new THREE.MeshLambertMaterial({ color: 0x4a7a2a, flatShading: true });
+  const wallG = new THREE.PlaneGeometry(6.2, 4);
+  const wallCols = ['#e8412c', '#1f6fd1', '#ffd23f', '#1fb5a8', '#8338ec'];
+  const fruitG = new THREE.SphereGeometry(0.32, 8, 6);
+  const fruitCols = ['#e8412c', '#ffd23f', '#8a3fb3', '#fb5607'];
+
+  const posts = new THREE.InstancedMesh(postG, postM, N_SUCOT * 4);
+  const roofs = new THREE.InstancedMesh(roofG, roofM, N_SUCOT);
+  const fruits = new THREE.InstancedMesh(fruitG, new THREE.MeshLambertMaterial(), N_SUCOT * 4);
+  const d = new THREE.Object3D(), col = new THREE.Color();
+  let placed = 0, guard = 0;
+  while (placed < N_SUCOT && guard++ < 4000) {
+    const x = rnd(-500, 550), z = rnd(-560, 480);
+    if (!farFromTrack(x, z, WALL + 15)) continue;
+    const rot = rnd(0, TAU);
+    for (let c = 0; c < 4; c++) {
+      const cx = (c % 2 ? 1 : -1) * 2.9, cz = (c < 2 ? 1 : -1) * 2.9;
+      const wx = x + cx * Math.cos(rot) - cz * Math.sin(rot), wz = z + cx * Math.sin(rot) + cz * Math.cos(rot);
+      d.position.set(wx, 2.3, wz); d.rotation.set(0, rot, 0); d.updateMatrix();
+      posts.setMatrixAt(placed * 4 + c, d.matrix);
+      d.position.y = 3.6; d.updateMatrix();
+      fruits.setMatrixAt(placed * 4 + c, d.matrix);
+      fruits.setColorAt(placed * 4 + c, col.set(fruitCols[(placed + c) % fruitCols.length]));
+    }
+    d.position.set(x, 4.9, z); d.rotation.set(0, rot, 0); d.updateMatrix();
+    roofs.setMatrixAt(placed, d.matrix);
+    // una tela de color en un lateral, a modo de pared de la sucá
+    const wall = new THREE.Mesh(wallG, new THREE.MeshLambertMaterial({ color: wallCols[placed % wallCols.length], side: THREE.DoubleSide }));
+    wall.position.set(x - Math.sin(rot) * 2.9, 2.2, z + Math.cos(rot) * 2.9); wall.rotation.y = rot;
+    scene.add(wall);
+    placed++;
+  }
+  posts.count = placed * 4; roofs.count = placed; fruits.count = placed * 4; fruits.instanceColor.needsUpdate = true;
+  scene.add(posts, roofs, fruits);
+}
+
 /* ---------- Karts ---------- */
 const lam = c => new THREE.MeshLambertMaterial({ color: c });
 const DARK = lam(0x23252e), METAL = lam(0x9aa0ad), TIRE = lam(0x1a1a1f), SKIN = lam(0xf1c7a3);
@@ -649,7 +692,7 @@ function boxTexture(label) {
   });
 }
 const boxMat = new THREE.MeshLambertMaterial({ map: boxTexture(BOX_LABEL), transparent: true, opacity: 0.92, emissive: 0x333333 });
-const boxGeo = new THREE.BoxGeometry(2.4, 2.4, 2.4), bigBoxGeo = new THREE.BoxGeometry(4.1, 4.1, 4.1), wideBoxGeo = new THREE.BoxGeometry(5.6, 3.7, 2.3);
+const boxGeo = new THREE.BoxGeometry(2.4, 2.4, 2.4), bigBoxGeo = new THREE.BoxGeometry(5.2, 5.2, 5.2), wideBoxGeo = new THREE.BoxGeometry(7, 4.6, 2.8);
 let boxes = [], rows = [];
 
 // Cajas de actividad: cara clara, marco de color, letra o dibujo grande
@@ -686,7 +729,7 @@ function buildFreeBoxes() {
 function buildRows() {
   for (const f of [0.08, 0.22, 0.36, 0.52, 0.66, 0.83]) {
     const idx = Math.floor(f * N), r = { idx, boxes: [], state: 'active', task: null, lastD: 0 };
-    [-7, 0, 7].forEach((lat, j) => {
+    [-7.5, 0, 7.5].forEach((lat, j) => {
       const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
       const m = new THREE.Mesh(activity === 'palabras' ? wideBoxGeo : bigBoxGeo, mat);
       m.position.copy(at(idx, lat, 2.4)); m.rotation.y = headingAt(idx); scene.add(m);
