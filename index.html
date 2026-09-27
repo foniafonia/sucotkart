@@ -204,6 +204,8 @@
       <div class="chars" id="chars"></div>
       <div class="label">Tu coche</div>
       <div class="chars" id="kartTiers" style="grid-template-columns:repeat(3,1fr)"></div>
+      <div class="label">Mundo</div>
+      <div class="chars" id="worlds" style="grid-template-columns:repeat(2,1fr)"></div>
       <div class="actBox">
         <div class="label" style="color:var(--sun)">🗣️ Actividad de logopedia</div>
         <p class="help" style="margin:2px 0 8px">Elige una para que el juego hable y pida letras, sílabas o palabras. "Libre" es la carrera clásica, sin lenguaje.</p>
@@ -354,10 +356,26 @@ function starsFor(pos, stats) {
 function renderStarBadge() {
   const b = $('starBadge'); if (b) b.textContent = '⭐ ' + totalStars;
   renderKartTiers();
-  const next = [...KART_TIERS, ...ITEM_UNLOCKS].filter(x => x.need > totalStars).sort((a, b2) => a.need - b2.need)[0];
+  renderWorlds();
+  const next = [...KART_TIERS, ...ITEM_UNLOCKS, ...WORLDS].filter(x => x.need > totalStars).sort((a, b2) => a.need - b2.need)[0];
   const nu = $('nextUnlock');
   if (nu) nu.textContent = next ? `Próximo: ${next.name} a ${next.need}⭐ (faltan ${next.need - totalStars})` : '¡Todo desbloqueado!';
 }
+
+/* ---------- Mundos: cambia el ambiente (cielo, niebla, montañas, tejado).
+   Elegir uno recarga la página para aplicarlo desde el principio. ---------- */
+const WORLDS = [
+  { id: 'suca',  name: 'Circuito de la Sucá', need: 0,  sky: ['#3ea6f2', '#9fd9ff', '#d6f0ff'], fog: 0xd6f0ff,
+    hemiSky: 0xdff4ff, hemiGround: 0x5b8a3a, sun: 0xfff2d6, mountain: 0x7fa37a, snow: 0xf3f7ff, roof: 0x6b8e23,
+    lore: 'Tu circuito de siempre, entre las sucás del barrio.' },
+  { id: 'kotel', name: 'Explanada del Kotel', need: 50, sky: ['#f5c463', '#f2d9a0', '#fdf0d8'], fog: 0xf2d9a0,
+    hemiSky: 0xffe8b8, hemiGround: 0xc9a35a, sun: 0xfff0c0, mountain: 0xd8c093, snow: 0xf5e6c8, roof: 0xc9a35a,
+    lore: 'Corres junto al Muro de las Lamentaciones, con sus piedras doradas.' },
+];
+const worldsUnlocked = () => WORLDS.filter(w => totalStars >= w.need);
+let worldId = store.get('world', 'suca');
+if (!worldsUnlocked().some(w => w.id === worldId)) worldId = 'suca';
+const WORLD = WORLDS.find(w => w.id === worldId) || WORLDS[0];
 
 /* ---------- Progresión: coches y armas que se desbloquean con estrellas
    (compartidas con FonoKart). ---------- */
@@ -384,10 +402,10 @@ function activeItems() {
 const renderer = new THREE.WebGLRenderer({ canvas: $('c'), antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xd6f0ff, 280, 1350);
+scene.fog = new THREE.Fog(WORLD.fog, 280, 1350);
 const camera = new THREE.PerspectiveCamera(70, 1, 0.5, 2600);
-scene.add(new THREE.HemisphereLight(0xdff4ff, 0x5b8a3a, 0.95));
-const sun = new THREE.DirectionalLight(0xfff2d6, 0.75); sun.position.set(300, 500, 200); scene.add(sun);
+scene.add(new THREE.HemisphereLight(WORLD.hemiSky, WORLD.hemiGround, 0.95));
+const sun = new THREE.DirectionalLight(WORLD.sun, 0.75); sun.position.set(300, 500, 200); scene.add(sun);
 
 function tex(w, h, draw) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -401,7 +419,7 @@ function noise(g, w, h, n, cols) {
 }
 scene.background = tex(4, 256, (g, w, h) => {
   const gr = g.createLinearGradient(0, 0, 0, h);
-  gr.addColorStop(0, '#3ea6f2'); gr.addColorStop(0.55, '#9fd9ff'); gr.addColorStop(1, '#d6f0ff');
+  gr.addColorStop(0, WORLD.sky[0]); gr.addColorStop(0.55, WORLD.sky[1]); gr.addColorStop(1, WORLD.sky[2]);
   g.fillStyle = gr; g.fillRect(0, 0, w, h);
 });
 
@@ -547,7 +565,7 @@ function buildBoards() {
 buildBoards();
 {
   const standMat = new THREE.MeshLambertMaterial({ color: 0xb9c1d6 });
-  const roofMat = new THREE.MeshLambertMaterial({ color: 0x6b8e23 });
+  const roofMat = new THREE.MeshLambertMaterial({ color: WORLD.roof });
   const bodies = [], units = [];
   for (let i = -56; i <= 56; i += 8) for (const s of [-1, 1]) {
     const g = new THREE.Group(); g.position.copy(at(i, 0)); g.rotation.y = headingAt(i);
@@ -602,8 +620,8 @@ const farFromTrack = (x, z, m) => { for (let i = 0; i < N; i += 4) { const dx = 
   }
   trunks.count = t; palms.count = p; rounds.count = r;
   scene.add(trunks, palms, rounds);
-  const mm = new THREE.MeshLambertMaterial({ color: 0x7fa37a, flatShading: true });
-  const snow = new THREE.MeshLambertMaterial({ color: 0xf3f7ff, flatShading: true });
+  const mm = new THREE.MeshLambertMaterial({ color: WORLD.mountain, flatShading: true });
+  const snow = new THREE.MeshLambertMaterial({ color: WORLD.snow, flatShading: true });
   for (let i = 0; i < 16; i++) {
     const a = i / 16 * TAU + rnd(-0.1, 0.1), R = rnd(1000, 1200), h = rnd(160, 320);
     const m = new THREE.Mesh(new THREE.ConeGeometry(h * 0.9, h, 6), mm); m.position.set(Math.cos(a) * R + 50, h / 2 - 5, Math.sin(a) * R); scene.add(m);
@@ -690,6 +708,36 @@ const farFromTrack = (x, z, m) => { for (let i = 0; i < N; i += 4) { const dx = 
     star.position.set(x + Math.sin(rot) * 4.55, 4, z + Math.cos(rot) * 4.55); star.rotation.y = rot;
     scene.add(star);
     placedS++;
+  }
+}
+
+// Muro del Kotel: solo en ese mundo, visible junto a la pista en la recta de salida
+if (WORLD.id === 'kotel') {
+  const wallTex = tex(256, 256, (g, w, h) => {
+    g.fillStyle = '#d8c093'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#a8875a'; g.lineWidth = 4;
+    const rows = 8;
+    for (let r = 0; r <= rows; r++) { const y = r * (h / rows); g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+    for (let r = 0; r < rows; r++) {
+      const y = r * (h / rows), off = (r % 2) * (w / 6);
+      for (let c = -1; c < 7; c++) { const x = off + c * (w / 6); g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + h / rows); g.stroke(); }
+    }
+    noise(g, w, h, 500, ['#cbb07f', '#e2cda0', '#b89b68']);
+  });
+  wallTex.wrapS = wallTex.wrapT = THREE.RepeatWrapping; wallTex.repeat.set(14, 3);
+  const wallMat = new THREE.MeshLambertMaterial({ map: wallTex, flatShading: true });
+  const wi = Math.floor(0.05 * N), wp = at(wi, 46), heading = headingAt(wi);
+  const wallH = 28, wallLen = 280;
+  const wallMesh = new THREE.Mesh(new THREE.BoxGeometry(5, wallH, wallLen), wallMat);
+  wallMesh.position.set(wp.x, wallH / 2, wp.z); wallMesh.rotation.y = heading;
+  scene.add(wallMesh);
+  // palomas revoloteando junto al muro
+  const doveG = new THREE.ConeGeometry(0.35, 1.1, 4), doveM = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  for (let i = 0; i < 12; i++) {
+    const dv = new THREE.Mesh(doveG, doveM);
+    dv.position.set(wp.x + rnd(-90, 90), wallH + rnd(2, 14), wp.z + rnd(-90, 90));
+    dv.rotation.x = Math.PI / 2; dv.rotation.z = rnd(0, TAU);
+    scene.add(dv);
   }
 }
 
@@ -1465,7 +1513,7 @@ function showResults() {
   const earned = starsFor(p, stats), before = totalStars;
   totalStars += earned; store.set('stars', totalStars); renderStarBadge();
   $('resStars').textContent = '⭐'.repeat(earned) + '☆'.repeat(3 - earned);
-  const newly = [...KART_TIERS, ...ITEM_UNLOCKS].filter(x => x.need > before && x.need <= totalStars);
+  const newly = [...KART_TIERS, ...ITEM_UNLOCKS, ...WORLDS].filter(x => x.need > before && x.need <= totalStars);
   const un = $('unlockMsg');
   if (newly.length) { un.innerHTML = newly.map(x => `🎉 <b>${x.name}</b> — ${x.lore}`).join('<br>'); un.hidden = false; } else un.hidden = true;
   const lr = $('learnRes');
@@ -1529,6 +1577,20 @@ $('kartTiers').addEventListener('click', e => {
   resetRace();
 });
 renderKartTiers();
+// Selector de mundo (ambiente), desbloqueado con estrellas; cambiar recarga la página
+function renderWorlds() {
+  $('worlds').innerHTML = WORLDS.map(w => {
+    const locked = totalStars < w.need;
+    return `<button class="char${locked ? ' locked' : ''}" data-id="${w.id}" aria-pressed="${w.id === worldId}">${w.name}${locked ? `<small>🔒 ${w.need}⭐</small>` : ''}</button>`;
+  }).join('');
+}
+$('worlds').addEventListener('click', e => {
+  const b = e.target.closest('.char'); if (!b || b.classList.contains('locked')) return;
+  if (b.dataset.id === worldId) return;
+  store.set('world', b.dataset.id);
+  location.reload();
+});
+renderWorlds();
 
 $('diff').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.d === diff));
 $('diff').addEventListener('click', e => {
