@@ -401,7 +401,10 @@ const WORLD = WORLDS.find(w => w.id === worldId) || WORLDS[0];
 const KART_TIERS = [
   { id: 'clasico', name: 'Clásico', mult: 1.00, need: 0,  lore: 'Fiable de toda la vida.' },
   { id: 'turbo',   name: 'Turbo',   mult: 1.08, need: 5, lore: 'El motor suena distinto ahora.' },
+  { id: 'sucamovil', name: 'Sucamóvil', mult: 1.10, need: 8,  lore: 'Llevas tu propia sucá encima, con sejaj y frutas colgando.' },
+  { id: 'tefilin',  name: 'Tefilincar', mult: 1.12, need: 12, lore: 'Un bayit negro con su shin dorada y las retzuot al viento.' },
   { id: 'rayo',    name: 'Rayo',    mult: 1.16, need: 16, lore: 'El más rápido del taller.' },
+  { id: 'hejal',   name: 'Hejal',   mult: 1.18, need: 20, lore: 'Un Arón HaKodesh con el Séfer Torá detrás. El coche más especial.' },
 ];
 const kartsUnlocked = () => KART_TIERS.filter(t => totalStars >= t.need);
 let kartTierId = store.get('kart', 'clasico');
@@ -781,6 +784,57 @@ if (WORLD.id === 'kotel') {
 /* ---------- Karts ---------- */
 const lam = c => new THREE.MeshLambertMaterial({ color: c });
 const DARK = lam(0x23252e), METAL = lam(0x9aa0ad), TIRE = lam(0x1a1a1f), SKIN = lam(0xf1c7a3);
+const WOOD = lam(0x8b5a2b), GOLD = lam(0xd9b440), CREAM = lam(0xfff8e7), SCHACH = lam(0x5f8a2e), LEATHER = lam(0x111114);
+const talitTex = tex(64, 64, (g, w, h) => {      // talit blanco con franjas negras
+  g.fillStyle = '#fbfaf4'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#1b1b24'; for (const y of [38, 46, 54]) g.fillRect(0, y, w, y === 46 ? 5 : 3);
+});
+const TALIT = new THREE.MeshLambertMaterial({ map: talitTex, side: THREE.DoubleSide });
+const shinTex = tex(64, 64, (g, w, h) => { g.fillStyle = '#111114'; g.fillRect(0, 0, w, h); g.fillStyle = '#e8c547'; g.font = 'bold 50px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('ש', w / 2, h / 2 + 3); });
+const SHIN = new THREE.MeshLambertMaterial({ map: shinTex });
+const parojetTex = tex(64, 96, (g, w, h) => {
+  g.fillStyle = '#6b1020'; g.fillRect(0, 0, w, h);
+  g.strokeStyle = '#e8c547'; g.lineWidth = 3; g.strokeRect(4, 4, w - 8, h - 8);
+  g.lineWidth = 3; const cx = w / 2, cy = h / 2, r = 16;
+  for (const o of [0, Math.PI]) { g.beginPath(); for (let i = 0; i < 3; i++) { const a = o - Math.PI / 2 + i * TAU / 3; g[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * r, cy + Math.sin(a) * r); } g.closePath(); g.stroke(); }
+});
+const PAROJET = new THREE.MeshLambertMaterial({ map: parojetTex });
+function addTalit(add) {                           // talit gadol sobre los hombros, con atará y tzitzit
+  add(new THREE.CylinderGeometry(0.62, 0.8, 0.95, 16, 1, true), TALIT, 0, 1.85, -0.6);
+  add(new THREE.TorusGeometry(0.52, 0.09, 6, 16), CREAM, 0, 2.3, -0.6).rotation.x = Math.PI / 2;
+  add(new THREE.BoxGeometry(0.5, 0.12, 0.08), GOLD, 0, 2.28, -0.05);            // atará bordada
+  for (const x of [0.55, -0.55]) for (const z of [-0.1, -1.1]) add(new THREE.CylinderGeometry(0.03, 0.03, 0.45, 4), CREAM, x, 1.22, z);
+}
+function buildSkin(id, add, col) {
+  const parts = [];
+  const p = (geo, mat, x, y, z) => { const m = add(geo, mat, x, y, z); parts.push(m); return m; };
+  if (id === 'sucamovil') {
+    for (const x of [1.25, -1.25]) for (const z of [1.0, -2.1]) p(new THREE.BoxGeometry(0.16, 2.9, 0.16), WOOD, x, 2.35, z);
+    for (let i = 0; i < 7; i++) p(new THREE.BoxGeometry(2.9, 0.16, 0.22), i % 2 ? SCHACH : lam(0x7a9a3a), 0, 3.85, 1.05 - i * 0.52);
+    for (const x of [1.25, -1.25]) { const w = p(new THREE.PlaneGeometry(3.1, 0.9), lam(0xf4e3b5), x, 3.2, -0.55); w.rotation.y = Math.PI / 2; w.material.side = THREE.DoubleSide; }
+    [[0.6, 0.3, 0xe8412c], [-0.5, -0.4, 0xffd23f], [0.1, -1.4, 0x8338ec], [-0.7, 0.7, 0xff8a1f]].forEach(([x, z, c]) => {
+      p(new THREE.CylinderGeometry(0.015, 0.015, 0.3, 3), DARK, x, 3.65, z);
+      p(new THREE.SphereGeometry(0.17, 8, 6), lam(c), x, 3.42, z);
+    });
+  }
+  if (id === 'tefilin') {
+    p(new THREE.BoxGeometry(1.7, 1.7, 1.7), SHIN, 0, 1.75, 2.0);
+    p(new THREE.BoxGeometry(2.1, 0.3, 2.1), LEATHER, 0, 0.95, 2.0);              // titura (base)
+    p(new THREE.BoxGeometry(2.6, 0.08, 0.3), LEATHER, 0, 1.0, 0.4);               // retzuá que rodea el coche
+    for (const x of [0.5, -0.5]) { const r = p(new THREE.BoxGeometry(0.14, 0.05, 3.2), LEATHER, x, 1.55, -3.6); r.rotation.x = -0.25; }
+  }
+  if (id === 'hejal') {
+    p(new THREE.BoxGeometry(2.3, 1.5, 1.1), WOOD, 0, 1.75, -2.75);               // Arón HaKodesh
+    const cur = p(new THREE.PlaneGeometry(1.6, 1.15), PAROJET, 0, 1.72, -3.31); cur.rotation.y = Math.PI;
+    p(new THREE.BoxGeometry(2.5, 0.2, 1.3), GOLD, 0, 2.6, -2.75);
+    p(new THREE.CylinderGeometry(0.34, 0.34, 1.5, 14), lam(0x1f3a8a), 0, 3.05, -2.75).rotation.z = Math.PI / 2;   // Séfer Torá tumbado con su mantel
+    for (const x of [0.5, -0.5]) p(new THREE.CylinderGeometry(0.35, 0.35, 0.08, 14), GOLD, x, 3.05, -2.75).rotation.z = Math.PI / 2;
+    for (const x of [1, -1]) { p(new THREE.CylinderGeometry(0.06, 0.06, 0.5, 6), WOOD, x, 3.05, -2.75).rotation.z = Math.PI / 2; p(new THREE.SphereGeometry(0.12, 8, 6), GOLD, x * 1.3, 3.05, -2.75); }
+    for (const x of [1.25, -1.25]) p(new THREE.CylinderGeometry(0.13, 0.13, 1.5, 8), GOLD, x, 1.75, -3.3);   // columnas
+  }
+  parts.forEach(m => m.visible = false);
+  return parts;
+}
 const wheelG = new THREE.CylinderGeometry(0.58, 0.58, 0.55, 14); wheelG.rotateZ(Math.PI / 2);
 const bigWheelG = new THREE.CylinderGeometry(0.72, 0.72, 0.7, 14); bigWheelG.rotateZ(Math.PI / 2);
 const shadowTex = tex(64, 64, (g) => { const r = g.createRadialGradient(32, 32, 4, 32, 32, 32); r.addColorStop(0, 'rgba(0,0,0,.55)'); r.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); });
@@ -807,10 +861,13 @@ function makeKart(pilot) {
   for (const wSign of [1, -1]) for (const wz of [1.55, -1.45]) add(new THREE.CylinderGeometry(0.22, 0.22, 0.06, 10), col, wSign * (1.4 + (wz < 0 ? 0.1 : 0)), 0.58 + (wz < 0 ? 0.14 : 0), wz).rotation.z = Math.PI / 2;
   add(new THREE.BoxGeometry(0.5, 0.1, 3.9), lam(0xfff8e7), 0, 0.99, 0);          // franja deportiva
   add(new THREE.BoxGeometry(3, 0.3, 0.35), METAL, 0, 0.42, 3.35);                // splitter delantero
-  add(new THREE.CylinderGeometry(0.08, 0.08, 0.9, 6), METAL, 0.9, 1.55, -2.7);
-  add(new THREE.CylinderGeometry(0.08, 0.08, 0.9, 6), METAL, -0.9, 1.55, -2.7);
-  add(new THREE.BoxGeometry(2.2, 0.12, 0.7), col, 0, 1.95, -2.75);               // alerón trasero
+  const spoiler = [
+    add(new THREE.CylinderGeometry(0.08, 0.08, 0.9, 6), METAL, 0.9, 1.55, -2.7),
+    add(new THREE.CylinderGeometry(0.08, 0.08, 0.9, 6), METAL, -0.9, 1.55, -2.7),
+    add(new THREE.BoxGeometry(2.2, 0.12, 0.7), col, 0, 1.95, -2.75),               // alerón trasero
+  ];
   add(new THREE.CylinderGeometry(0.55, 0.65, 1.1, 10), col, 0, 1.75, -0.6);
+  addTalit(add);
   add(new THREE.SphereGeometry(0.66, 14, 10), SKIN, 0, 2.65, -0.5);              // cabeza
   add(new THREE.CylinderGeometry(0.86, 0.86, 0.09, 16), DARK, 0, 2.98, -0.5);    // ala del sombrero
   add(new THREE.CylinderGeometry(0.5, 0.54, 0.55, 16), DARK, 0, 3.28, -0.5);     // copa del sombrero
@@ -822,8 +879,9 @@ function makeKart(pilot) {
   sparks.forEach(s => s.visible = false);
   const flame = add(new THREE.ConeGeometry(0.45, 2.2, 8), new THREE.MeshBasicMaterial({ color: 0xffa21f, transparent: true, opacity: 0.85 }), 0, 1.25, -3.4);
   flame.rotation.x = -Math.PI / 2; flame.visible = false;
+  const skins = {}; for (const id of ['sucamovil', 'tefilin', 'hejal']) skins[id] = buildSkin(id, add, col);
   scene.add(root);
-  return { root, vis, wheels, sparks, flame };
+  return { root, vis, wheels, sparks, flame, spoiler, skins };
 }
 
 const karts = PILOTS.map((p, i) => Object.assign(makeKart(p), {
@@ -1122,7 +1180,12 @@ function resetRace() {
     updateTrack(k); k.prog = -1 * N + k.idx;
     syncMesh(k, 0);
   });
-  karts.forEach(k => { k.root.visible = true; k.outN = 0; });
+  karts.forEach(k => {
+    k.root.visible = true; k.outN = 0;
+    const skin = k.isPlayer ? kartTierId : Math.random() < 0.45 ? ['sucamovil', 'tefilin', 'hejal'][k.id % 3] : '';
+    for (const id in k.skins) k.skins[id].forEach(m => m.visible = id === skin);
+    k.spoiler.forEach(m => m.visible = skin !== 'hejal');
+  });
   if (mode === 'crono') karts.forEach(k => { if (!k.isPlayer) retire(k, 0); });
   elimLap = 0; outCount = 0; newRecord = false;
   raceT = 0; countT = 3.6; finishT = 0; lastLapShown = 0;
