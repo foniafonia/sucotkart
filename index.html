@@ -231,7 +231,7 @@
       <button class="go" id="goBtn">¡A CORRER!</button>
       <p class="help" id="actHelp"></p>
       <p class="help" id="helpKeys"><kbd>←</kbd> <kbd>→</kbd> girar · <kbd>↑</kbd> acelerar · <kbd>↓</kbd> frenar · <kbd>Espacio</kbd> derrapar · <kbd>X</kbd> usar objeto.<br>Mantén el derrape en las curvas: al soltar, las chispas azules, naranjas o moradas te dan turbo.</p>
-      <p class="help" id="helpTouch" hidden>El kart acelera solo. Gira con ◀ ▶. Mantén DERRAPE en las curvas y suéltalo para ganar turbo. Las cajas de colores dan objetos: turbo ⚡, lulav 🌴 y etrog 🍋. Pisa las rampas naranjas con flechas para ir más rápido y esquiva el barro. Coge frutas 🍎 (hasta 10, te hacen más rápido). En lo alto de las colinas saltas: pulsa DERRAPE en el aire para hacer una pirueta y ganar turbo. Ve pegado detrás de un rival para coger rebufo. Mejor con el móvil en horizontal.</p>
+      <p class="help" id="helpTouch" hidden>El kart acelera solo. Gira con ◀ ▶. Mantén DERRAPE en las curvas y suéltalo para ganar turbo. Las cajas de colores dan objetos: turbo ⚡, lulav 🌴, etrog 🍋 y más que se desbloquean (shofar 📯, granadas 🔴, miel 🍯, agua 💧…). Si llevas el lulav o el etrog sin usar, va detrás y te protege de un golpe. Pisa las rampas naranjas con flechas para ir más rápido y esquiva el barro. Coge frutas 🍎 (hasta 10, te hacen más rápido). En lo alto de las colinas saltas: pulsa DERRAPE en el aire para hacer una pirueta y ganar turbo. Ve pegado detrás de un rival para coger rebufo. Mejor con el móvil en horizontal.</p>
       <p class="help" style="opacity:.6;font-size:11px">🛒 Sucá Creativa · encargos y productos de temática judía: <a href="mailto:laveletas@hotmail.com" style="color:var(--sun)">laveletas@hotmail.com</a></p>
       <p class="help" style="opacity:.55;font-size:11px">Música: "Bonkers for Arcades" de Eric Matyas, soundimage.org.</p>
     </div>
@@ -262,6 +262,7 @@
   </div>
 </div>
 
+<div id="honey" style="position:fixed;inset:0;z-index:5;pointer-events:none;opacity:0;background:radial-gradient(circle at 20% 30%,rgba(232,163,23,.9) 0 9%,transparent 10%),radial-gradient(circle at 70% 20%,rgba(232,163,23,.85) 0 7%,transparent 8%),radial-gradient(circle at 55% 65%,rgba(232,163,23,.9) 0 11%,transparent 12%),radial-gradient(circle at 15% 80%,rgba(232,163,23,.8) 0 6%,transparent 7%),radial-gradient(circle at 85% 75%,rgba(232,163,23,.85) 0 8%,transparent 9%)"></div>
 <canvas id="heatCanvas" style="position:fixed;inset:0;z-index:999;pointer-events:none;display:none"></canvas>
 
 <div class="overlay" id="results" hidden>
@@ -415,6 +416,10 @@ const ITEM_UNLOCKS = [
   { id: 'rayo',     name: 'Arma: Rayo',     icon: '🌩️', weight: 2, need: 2, lore: 'Ya sabes aturdir a quien vaya delante.' },
   { id: 'hadas',    name: 'Arma: Hadas',    icon: '🌿', weight: 2, need: 6, lore: 'Al que le da se le nubla la vista un ratito.' },
   { id: 'estrella', name: 'Arma: Estrella', icon: '⭐', weight: 2, need: 10, lore: 'Unos segundos en los que nada te para.' },
+  { id: 'shofar',   name: 'Arma: Shofar',   icon: '📯', weight: 2, need: 1,  lore: 'Su sonido rompe los objetos de alrededor y hace trompear a los que tienes pegados.' },
+  { id: 'rimon',    name: 'Arma: Rimonim',  icon: '🔴', weight: 2, need: 3,  lore: 'Tres granadas para lanzar una a una, hacia delante o hacia atrás.' },
+  { id: 'miel',     name: 'Arma: Miel',     icon: '🍯', weight: 2, need: 4,  lore: 'Un charco de miel: quien lo pisa resbala y se le pega en la pantalla.' },
+  { id: 'mayim',    name: 'Mayim Jaim',     icon: '💧', weight: 2, need: 9,  lore: 'Turbo de agua que además te limpia de hadas, miel y barro.' },
   { id: 'arava',    name: 'Arma: Aravá',    icon: '🍃', weight: 2, need: 14, lore: 'Completas las cuatro especies: se enreda y frena a quien le da.' },
 ];
 function activeItems() {
@@ -907,8 +912,11 @@ function makeKart(pilot) {
   const flame = add(new THREE.ConeGeometry(0.45, 2.2, 8), new THREE.MeshBasicMaterial({ color: 0xffa21f, transparent: true, opacity: 0.85 }), 0, 1.25, -3.4);
   flame.rotation.x = -Math.PI / 2; flame.visible = false;
   const skins = {}; for (const id of ['sucamovil', 'tefilin', 'hejal']) skins[id] = buildSkin(id, add, col);
+  const shieldL = add(new THREE.ConeGeometry(0.35, 2.2, 7), lam(0x3a8f3a), 0, 1.1, -4.0, root);   // lulav llevado detrás
+  const shieldE = add(new THREE.SphereGeometry(0.8, 12, 10), lam(0xe8c93a), 0, 0.9, -4.0, root);  // etrog llevado detrás
+  shieldL.visible = shieldE.visible = false;
   scene.add(root);
-  return { root, vis, wheels, sparks, flame, spoiler, skins };
+  return { root, vis, wheels, sparks, flame, spoiler, skins, shieldL, shieldE };
 }
 
 const karts = PILOTS.map((p, i) => Object.assign(makeKart(p), {
@@ -983,12 +991,24 @@ const hadasG = new THREE.SphereGeometry(0.32, 6, 5);        // hoja de hadas (mi
 const hadasM = lam(0x2f6b2f);
 const aravaG = new THREE.CylinderGeometry(0.05, 0.05, 1.3, 5); // rama de aravá (sauce)
 const aravaM = lam(0x6a8f4a);
-let bananas = [], shells = [];
+let bananas = [], shells = [], waves = [];
+const rimonG = new THREE.SphereGeometry(0.6, 10, 8), rimonM = lam(0xb3122e);
+const mielM = new THREE.MeshLambertMaterial({ color: 0xe8a317, transparent: true, opacity: 0.85 }), mielJarM = lam(0xc98a1a);
+const hasShield = k => (k.item === 'platano' || k.item === 'caparazon') && k.rolling <= 0;   // lulav o etrog detrás: para un golpe
+function blockHit(k) {
+  k.item = null; if (k.isPlayer) { renderItem(); showMsg('¡ESCUDO!', 0.7); sfx.shoot(); }
+}
 
-function pickItem() {
+// Los primeros reciben objetos para defenderse; los últimos, para remontar
+const W_LEAD = { platano: 1.6, caparazon: 1.3, miel: 1.5, rimon: 1.2, hadas: 1, arava: 1, turbo: 0.7, shofar: 0.8, mayim: 0.5, rayo: 0.1, estrella: 0.2 };
+const W_BACK = { platano: 0.4, caparazon: 0.8, miel: 0.3, rimon: 1.2, hadas: 1, arava: 1, turbo: 1.8, shofar: 1.2, mayim: 1.6, rayo: 1.8, estrella: 1.8 };
+function pickItem(k) {
   const pool = activeItems();
-  const tot = pool.reduce((s, it) => s + it.weight, 0); let r = Math.random() * tot;
-  for (const it of pool) { if ((r -= it.weight) < 0) return it.id; }
+  let r = 0.5;
+  if (k && mode !== 'batalla') { const rk = ranking().filter(x => !x.out); r = rk.length > 1 ? rk.indexOf(k) / (rk.length - 1) : 0.5; }
+  const w = it => it.weight * ((W_LEAD[it.id] ?? 1) * (1 - r) + (W_BACK[it.id] ?? 1) * r);
+  const tot = pool.reduce((s, it) => s + w(it), 0); let x = Math.random() * tot;
+  for (const it of pool) { if ((x -= w(it)) < 0) return it.id; }
   return pool[0].id;
 }
 const itemIcon = id => (activeItems().find(i => i.id === id) || {}).icon || '';
@@ -1026,6 +1046,36 @@ function useItem(k) {
     for (const rot of [0, 1.2, -1.2, 2.4]) { const l = new THREE.Mesh(aravaG, aravaM); l.rotation.z = rot; g.add(l); }
     scene.add(g); shells.push({ mesh: g, s: k.idx + (back ? -3 : 3), dir: back ? -1 : 1, lat: k.lat, owner: k, life: 7, t: 0, effect: 'slow' });
     if (k.isPlayer) sfx.shoot();
+  }
+  if (it === 'rimon') {                   // granada: se lanza como el etrog; quedan hasta 3
+    const back = k.isPlayer ? input.brake : aiBack(k);
+    const m = new THREE.Mesh(rimonG, rimonM); const g = new THREE.Group(); g.add(m);
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.35, 5), rimonM); crown.position.y = 0.7; g.add(crown);
+    scene.add(g); shells.push({ mesh: g, s: k.idx + (back ? -3 : 3), dir: back ? -1 : 1, lat: k.lat, owner: k, life: 5, t: 0, effect: 'spin' });
+    k.itemN = (k.itemN || 3) - 1;
+    if (k.itemN > 0) { k.item = 'rimon'; k.itemT = rnd(0.5, 1.4); }
+    if (k.isPlayer) sfx.shoot();
+  }
+  if (it === 'miel') {                    // charco de miel detrás del kart
+    const g = new THREE.Group();
+    const pud = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 0.08, 16), mielM); g.add(pud);
+    const jar = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 0.8, 10), mielJarM); jar.position.set(0.4, 0.4, 0); g.add(jar);
+    g.position.copy(k.pos).addScaledVector(f, -4.5); g.position.y = k.pos.y + 0.06;
+    scene.add(g); bananas.push({ mesh: g, pos: g.position, owner: k, t: 0, type: 'miel' });
+  }
+  if (it === 'mayim') {                   // turbo de agua y limpieza
+    k.boost = Math.max(k.boost, 2.0); k.blind = 0; k.slowT = 0; k.stall = 0; k.honey = 0;
+    if (k.isPlayer) { sfx.boost(); showMsg('¡MAYIM JAIM! 💧', 1); }
+  }
+  if (it === 'shofar') {                  // onda: rompe objetos cercanos y hace trompear a los pegados
+    const px = k.pos.x, pz = k.pos.z, near = (x, z, r) => (x - px) ** 2 + (z - pz) ** 2 < r * r;
+    shells = shells.filter(s => { if (s.owner !== k && near(s.mesh.position.x, s.mesh.position.z, 30)) { scene.remove(s.mesh); return false; } return true; });
+    bananas = bananas.filter(b => { if (b.owner !== k && near(b.pos.x, b.pos.z, 30)) { scene.remove(b.mesh); return false; } return true; });
+    let hits = 0;
+    karts.forEach(o => { if (o !== k && !o.out && near(o.pos.x, o.pos.z, 14)) { if (o.invincible <= 0 && o.spin <= 0) hits++; spinOut(o); } });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.35, 6, 32), new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.8 }));
+    ring.rotation.x = Math.PI / 2; ring.position.set(px, k.pos.y + 1, pz); scene.add(ring); waves.push({ mesh: ring, t: 0 });
+    if (k.isPlayer) { sfx.shofar(); if (hits >= 2) achieve('tekia'); }
   }
   if (it === 'estrella') {                // invencible y a tope de velocidad un rato
     k.invincible = 6;
@@ -1094,7 +1144,7 @@ function newTask(r) {
 let stats = [], questRow = null, questFlash = 0;
 function giveItem(k, id, t) {
   if (k.item || k.rolling > 0) return;
-  k.rolling = t; k.pending = id || pickItem(); if (k.isPlayer) renderItem();
+  k.rolling = t; k.pending = id || pickItem(k); if (k.isPlayer) renderItem();
 }
 function answerMirror(r, b) {
   r.state = 'hidden'; r.popT = 0.25;
@@ -1118,7 +1168,7 @@ function answer(r, b) {
   if (ok) {
     player.boost = Math.max(player.boost, 1.3);
     onStreak(true);
-    if (!player.item && player.rolling <= 0) { player.rolling = 0.8; player.pending = pickItem(); renderItem(); }
+    if (!player.item && player.rolling <= 0) { player.rolling = 0.8; player.pending = pickItem(player); renderItem(); }
     sfx.ok(); showMsg('¡BIEN!', 1); flashQuest('ok');
   } else {
     player.speed *= 0.55; onStreak(false);
@@ -1190,6 +1240,9 @@ const ACH = [
   { id: 'cosecha',  icon: '🍎', name: 'Cosecha completa',  desc: 'Lleva 10 frutas a la vez.' },
   { id: 'racha',    icon: '🔥', name: 'Racha',             desc: 'Acierta 3 cajas de hebreo seguidas.' },
   { id: 'imparable',icon: '⚡', name: 'Imparable',         desc: 'Acierta 10 cajas seguidas sin fallar.' },
+  { id: 'invertido',icon: '🍋', name: 'Lanzamiento invertido', desc: 'Da a un rival con algo lanzado hacia atrás (mantén FRENO).' },
+  { id: 'nube',     icon: '🌿', name: 'Nube de hadas',     desc: 'Nubla la vista a un rival con las hadas.' },
+  { id: 'tekia',    icon: '📯', name: 'Tekiá',             desc: 'Haz trompear a 2 rivales a la vez con el shofar.' },
 ];
 let achDone = store.get('ach', {});
 function achieve(id) {
@@ -1215,7 +1268,7 @@ const input = { left: false, right: false, gas: false, brake: false, drift: fals
 let touchMode = false;
 
 function resetRace() {
-  bananas.forEach(b => scene.remove(b.mesh)); shells.forEach(s => scene.remove(s.mesh)); bananas = []; shells = [];
+  bananas.forEach(b => scene.remove(b.mesh)); shells.forEach(s => scene.remove(s.mesh)); waves.forEach(w => scene.remove(w.mesh)); bananas = []; shells = []; waves = [];
   clearBoxes(); recent = []; stats = []; questRow = null;
   const learn = activity !== 'libre';
   if (learn) buildRows(); else buildFreeBoxes();
@@ -1229,7 +1282,7 @@ function resetRace() {
     k.idx = N - 6 - row * 5 - colm * 2;
     k.lat = colm ? -5 : 5;
     k.pos.copy(at(k.idx, k.lat)); k.h = headingAt(k.idx);
-    Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0, invincible: 0, blind: 0, slowT: 0, prevCurv: 0, aiSkill: [0.35, 0.65, 0.95][diff] + rnd(-0.1, 0.1), out: false, stall: 0, jy: 0, jv: 0, trick: false, trickT: 0, prevSlopeJ: 0, onPad: false, draftT: 0, fruits: 0, prevDrift: false, rocketT: null });
+    Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0, invincible: 0, blind: 0, slowT: 0, honey: 0, itemN: 0, prevCurv: 0, aiSkill: [0.35, 0.65, 0.95][diff] + rnd(-0.1, 0.1), out: false, stall: 0, jy: 0, jv: 0, trick: false, trickT: 0, prevSlopeJ: 0, onPad: false, draftT: 0, fruits: 0, prevDrift: false, rocketT: null });
     k.isPlayer = k === player;
     k.base = k.isPlayer ? (KART_TIERS.find(t => t.id === kartTierId) || KART_TIERS[0]).mult : DIFF[diff] + rnd(-0.03, 0.03) + (slot < 4 ? 0.015 : 0);
     k.skill = k.base;
@@ -1276,6 +1329,7 @@ function physics(k, c, dt) {
   if (k.stall > 0) { k.stall -= dt; c = Object.assign({}, c, { gas: false }); }
   if (k.invincible > 0) k.invincible -= dt;
   if (k.blind > 0) k.blind -= dt;
+  if (k.honey > 0) k.honey -= dt;
   if (k.slowT > 0) k.slowT -= dt;
   if (k.spin > 0) {
     k.spin -= dt; k.speed *= Math.pow(0.15, dt);
@@ -1480,12 +1534,14 @@ function syncMesh(k, dt) {
     s.visible = showSpark;
     if (showSpark) { s.material.color.set(k.charge > 2.2 ? 0xc77dff : k.charge > 1.25 ? 0xff9f1c : 0x5ad1ff); const sc = rnd(0.7, 1.6); s.scale.set(sc, sc, sc); }
   });
+  k.shieldL.visible = k.item === 'platano' && k.rolling <= 0; k.shieldE.visible = k.item === 'caparazon' && k.rolling <= 0;
   k.flame.visible = k.boost > 0;
   if (k.boost > 0) k.flame.scale.set(1, rnd(0.8, 1.3), 1);
 }
 
 /* ---------- Objetos en pista ---------- */
 function updateObjects(dt) {
+  waves = waves.filter(w => { w.t += dt; const sc = 1 + w.t * 40; w.mesh.scale.set(sc, sc, sc); w.mesh.material.opacity = Math.max(0, 0.8 - w.t * 1.4); if (w.t > 0.6) { scene.remove(w.mesh); return false; } return true; });
   for (const fr of FRUITS) {
     if (fr.off > 0) { fr.off -= dt; if (fr.off <= 0) fr.mesh.visible = true; continue; }
     fr.ph += dt * 2.5; fr.mesh.position.y = fr.y + Math.sin(fr.ph) * 0.25; fr.mesh.rotation.y += dt * 2;
@@ -1499,7 +1555,7 @@ function updateObjects(dt) {
       if (dx * dx + dz * dz < 7.5) {
         b.off = 3.5; b.mesh.visible = false;
         if (!k.item && k.rolling <= 0) {
-          k.rolling = k.isPlayer ? 1.1 : 0.2; k.pending = pickItem();
+          k.rolling = k.isPlayer ? 1.1 : 0.2; k.pending = pickItem(k);
           k.itemT = rnd(1, 5);
           if (k.isPlayer) { sfx.box(); renderItem(); }
         }
@@ -1511,17 +1567,22 @@ function updateObjects(dt) {
     updateRows(dt);
     for (const k of karts) if (!k.isPlayer && !k.out && !k.item && k.rolling <= 0) {   // los rivales reciben objetos con el tiempo
       k.aiItemT = (k.aiItemT || rnd(6, 14)) - dt;
-      if (k.aiItemT <= 0) { k.aiItemT = rnd(4, 9) - diff; k.rolling = 0.2; k.pending = pickItem(); k.itemT = rnd(0.6, 2.5); }
+      if (k.aiItemT <= 0) { k.aiItemT = rnd(4, 9) - diff; k.rolling = 0.2; k.pending = pickItem(k); k.itemT = rnd(0.6, 2.5); }
     }
   }
-  for (const k of karts) if (k.rolling > 0) { k.rolling -= dt; if (k.rolling <= 0) { k.item = k.pending; if (k.isPlayer) renderItem(); } }
+  for (const k of karts) if (k.rolling > 0) { k.rolling -= dt; if (k.rolling <= 0) { k.item = k.pending; if (k.item === 'rimon') k.itemN = 3; if (k.isPlayer) renderItem(); } }
   bananas = bananas.filter(b => {
     b.t += dt;
     for (const k of karts) {
       if (k === b.owner && b.t < 0.6) continue;
       if (k.jy > 1.2) continue;
       const dx = k.pos.x - b.pos.x, dz = k.pos.z - b.pos.z;
-      if (dx * dx + dz * dz < 5.5) { spinOut(k); scene.remove(b.mesh); return false; }
+      if (dx * dx + dz * dz < (b.type === 'miel' ? 7 : 5.5)) {
+        if (hasShield(k) && k.invincible <= 0) { blockHit(k); scene.remove(b.mesh); return false; }
+        spinOut(k);
+        if (b.type === 'miel' && k.invincible <= 0) { if (k.isPlayer) k.honey = 3.5; else k.slowT = 2; }
+        scene.remove(b.mesh); return false;
+      }
     }
     return true;
   });
@@ -1534,6 +1595,11 @@ function updateObjects(dt) {
       if (k === s.owner && s.t < 0.5) continue;
       const dx = k.pos.x - s.mesh.position.x, dz = k.pos.z - s.mesh.position.z;
       if (dx * dx + dz * dz < 7) {
+        if (hasShield(k) && k.invincible <= 0) { blockHit(k); scene.remove(s.mesh); return false; }
+        if (s.owner && s.owner.isPlayer && !k.isPlayer && k.invincible <= 0) {
+          if (s.dir < 0) achieve('invertido');
+          if (s.effect === 'blind') achieve('nube');
+        }
         if (s.effect === 'blind') { if (k.invincible <= 0) k.blind = 3.5; if (k.isPlayer) sfx.hit(); }
         else if (s.effect === 'slow') { if (k.invincible <= 0) k.slowT = 3; if (k.isPlayer) sfx.hit(); }
         else spinOut(k);
@@ -1614,6 +1680,7 @@ const sfx = {
   lap: () => { tone(660, 0.12); setTimeout(() => tone(880, 0.2), 120); },
   ok: () => [784, 988, 1319].forEach((f, i) => setTimeout(() => tone(f, 0.16, 'triangle', 0.2), i * 80)),
   no: () => tone(330, 0.35, 'triangle', 0.16, -120),
+  shofar: () => { tone(233, 0.3, 'sawtooth', 0.22, 30); setTimeout(() => tone(349, 0.7, 'sawtooth', 0.22, 60), 280); },
   fin: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.2), i * 140)),
 };
 function setMuted(m) { muted = m; store.set('muted', m); if (master) master.gain.value = m ? 0 : 0.5; if (musicEl) musicEl.volume = m ? 0 : 0.35; $('muteBtn').textContent = 'Sonido: ' + (m ? 'no' : 'sí'); }
@@ -1629,9 +1696,10 @@ function renderItem() {
   const el = $('item'), t = $('tItem');
   if (player.rolling > 0) { el.classList.add('roll'); return; }
   el.classList.remove('roll');
-  el.textContent = player.item ? itemIcon(player.item) : '';
-  t.textContent = player.item ? itemIcon(player.item) : '·';
-  $('tFire').textContent = player.item ? itemIcon(player.item) : 'DISPARO';
+  const ic = player.item ? itemIcon(player.item) + (player.item === 'rimon' ? player.itemN : '') : '';
+  el.textContent = ic;
+  t.textContent = ic || '·';
+  $('tFire').textContent = ic || 'DISPARO';
   $('tFire').style.fontSize = player.item ? '34px' : '';
 }
 function showMsg(text, dur = 1.1) {
@@ -1760,6 +1828,8 @@ function frame(now) {
   }
   // Hadas: nubla la vista un momento
   const bl = player.blind > 0 ? Math.min(1, player.blind / 3.5) : 0;
+  const hn = player.honey > 0 ? Math.min(1, player.honey / 2) : 0;
+  if (hn !== frame.hn) { $('honey').style.opacity = hn; frame.hn = hn; }
   renderer.domElement.style.filter = bl > 0 ? `blur(${bl * 7}px) brightness(${1 - bl * 0.45}) saturate(${1 - bl * 0.5})` : '';
   renderer.render(scene, camera);
 }
