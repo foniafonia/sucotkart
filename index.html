@@ -199,6 +199,7 @@
         <div style="text-align:right">
           <div id="starBadge" style="font:800 15px var(--body);background:var(--ink-2);border-radius:10px;padding:6px 10px;white-space:nowrap">⭐ 0</div>
           <p id="nextUnlock" class="help" style="margin:4px 0 0;font-size:10px;text-align:right"></p>
+          <p id="pilotTitle" class="help" style="margin:2px 0 0;font-size:11px;text-align:right;color:var(--sun)"></p>
         </div>
       </div>
       <div class="label">Tu piloto</div>
@@ -229,6 +230,7 @@
       <div class="toggles"><button class="ghost touchonly" id="controlBtn">Control: inclinar el móvil</button><button class="ghost touchonly" id="gasBtn">Acelerar: inclinando</button><button class="ghost" id="assistBtn">Ayuda al volante: sí</button></div>
       <div class="toggles"><button class="ghost" id="voiceBtn">Voz: sí</button><button class="ghost" id="caseBtn" hidden>Letra: MAYÚSCULA</button></div>
       <button class="go" id="goBtn">¡A CORRER!</button>
+      <button class="ghost" id="albumBtn">🏅 Logros, álbum y colecciones</button>
       <p class="help" id="actHelp"></p>
       <p class="help" id="helpKeys"><kbd>←</kbd> <kbd>→</kbd> girar · <kbd>↑</kbd> acelerar · <kbd>↓</kbd> frenar · <kbd>Espacio</kbd> derrapar · <kbd>X</kbd> usar objeto.<br>Mantén el derrape en las curvas: al soltar, las chispas azules, naranjas o moradas te dan turbo.</p>
       <p class="help" id="helpTouch" hidden>El kart acelera solo. Gira con ◀ ▶. Mantén DERRAPE en las curvas y suéltalo para ganar turbo. Las cajas de colores dan objetos: turbo ⚡, lulav 🌴, etrog 🍋 y más que se desbloquean (shofar 📯, granadas 🔴, miel 🍯, agua 💧…). Si llevas el lulav o el etrog sin usar, va detrás y te protege de un golpe. Pisa las rampas naranjas con flechas para ir más rápido y esquiva el barro. Coge frutas 🍎 (hasta 10, te hacen más rápido). En lo alto de las colinas saltas: pulsa DERRAPE en el aire para hacer una pirueta y ganar turbo. Ve pegado detrás de un rival para coger rebufo. Mejor con el móvil en horizontal.</p>
@@ -264,6 +266,25 @@
 
 <div id="honey" style="position:fixed;inset:0;z-index:5;pointer-events:none;opacity:0;background:radial-gradient(circle at 20% 30%,rgba(232,163,23,.9) 0 9%,transparent 10%),radial-gradient(circle at 70% 20%,rgba(232,163,23,.85) 0 7%,transparent 8%),radial-gradient(circle at 55% 65%,rgba(232,163,23,.9) 0 11%,transparent 12%),radial-gradient(circle at 15% 80%,rgba(232,163,23,.8) 0 6%,transparent 7%),radial-gradient(circle at 85% 75%,rgba(232,163,23,.85) 0 8%,transparent 9%)"></div>
 <canvas id="heatCanvas" style="position:fixed;inset:0;z-index:999;pointer-events:none;display:none"></canvas>
+
+<div class="overlay" id="album" hidden>
+  <div class="card"><div class="checker"></div>
+    <div class="inner">
+      <h1 style="font-size:34px">MIS LOGROS</h1>
+      <p class="sub" id="albTitle"></p>
+      <div class="label">Las cuatro especies</div>
+      <div class="chars" id="albSpecies"></div>
+      <div class="label">Álbum del Alef-Bet <span id="albCount"></span></div>
+      <p class="help" style="margin:0">Aciertas letras y palabras en las carreras y se pegan aquí. Toca una para oírla.</p>
+      <div class="chars" id="albLetters" style="grid-template-columns:repeat(6,1fr)"></div>
+      <div class="label">Garaje <span id="albKartCount"></span></div>
+      <div class="chars" id="albKarts" style="grid-template-columns:repeat(3,1fr)"></div>
+      <div class="label">Logros <span id="albAchCount"></span></div>
+      <div id="albAch" style="display:grid;gap:6px"></div>
+      <button class="go" id="albClose" style="font-size:18px">VOLVER</button>
+    </div>
+  </div>
+</div>
 
 <div class="overlay" id="results" hidden>
   <div class="card"><div class="checker"></div>
@@ -1016,6 +1037,7 @@ const aiBack = k => player.prog < k.prog && k.prog - player.prog < 60 && !player
 function useItem(k) {
   if (!k.item || k.rolling > 0) return;
   const it = k.item; k.item = null;
+  if (k.isPlayer) useSpecies(it);
   const f = new V3(Math.sin(k.h), 0, Math.cos(k.h));
   if (it === 'turbo') { k.boost = Math.max(k.boost, 1.6); if (k.isPlayer) sfx.boost(); }
   if (it === 'platano') {
@@ -1150,6 +1172,7 @@ function answerMirror(r, b) {
   r.state = 'hidden'; r.popT = 0.25;
   stats.push({ task: r.task, chosen: b.label, role: b.role, ok: b.role === 'target' });
   if (b.role === 'target') {
+    addLetters(r.task.answer);
     player.boost = Math.max(player.boost, 2.8); player.speed = Math.max(player.speed, 50);
     giveItem(player, null, 0.6);
     sfx.ok(); showMsg('¡SÚPER TURBO!', 1.3); flashQuest('ok'); say('muy bien, la ' + r.task.say); onStreak(true);
@@ -1168,6 +1191,8 @@ function answer(r, b) {
   if (ok) {
     player.boost = Math.max(player.boost, 1.3);
     onStreak(true);
+    const heb = activity === 'imagenes' ? r.task.prompt : r.task.answer;
+    addLetters(heb); noteWord(heb);
     if (!player.item && player.rolling <= 0) { player.rolling = 0.8; player.pending = pickItem(player); renderItem(); }
     sfx.ok(); showMsg('¡BIEN!', 1); flashQuest('ok');
   } else {
@@ -1243,13 +1268,50 @@ const ACH = [
   { id: 'invertido',icon: '🍋', name: 'Lanzamiento invertido', desc: 'Da a un rival con algo lanzado hacia atrás (mantén FRENO).' },
   { id: 'nube',     icon: '🌿', name: 'Nube de hadas',     desc: 'Nubla la vista a un rival con las hadas.' },
   { id: 'tekia',    icon: '📯', name: 'Tekiá',             desc: 'Haz trompear a 2 rivales a la vez con el shofar.' },
+  { id: 'victoria', icon: '🏆', name: 'Primera victoria',  desc: 'Gana una carrera.' },
+  { id: 'mundos',   icon: '🌍', name: 'Viajero',           desc: 'Gana una carrera en cada uno de los 4 mundos.' },
+  { id: 'limpio',   icon: '✨', name: 'Limpieza total',    desc: 'Gana una carrera sin pisar el barro.' },
+  { id: 'remontada',icon: '📈', name: 'Remontada épica',   desc: 'Ve 6º o peor y acaba en el podio.' },
+  { id: 'ojo',      icon: '👁️', name: 'Ojo de lince',      desc: 'Termina «Letras espejo» sin coger ni una letra equivocada (5 filas o más).' },
+  { id: 'enciclo',  icon: '📚', name: 'Enciclopedia de Sucot', desc: 'Acierta sucá, lulav, etrog, hadas, aravá e invitado.' },
+  { id: 'especies', icon: '🌴', name: 'Las cuatro especies', desc: 'Usa el lulav, el etrog, las hadas y la aravá.' },
+  { id: 'garaje',   icon: '🏎️', name: 'Maestro del garaje', desc: 'Termina una carrera con cada coche.' },
+  { id: 'alefbet',  icon: '🔤', name: 'Alef-Bet completo',  desc: 'Consigue las 22 letras del álbum.' },
+  { id: 'crono',    icon: '⏱️', name: 'Contra el reloj',   desc: 'Bate un récord en contrarreloj.' },
+  { id: 'supervive',icon: '🛡️', name: 'Superviviente',     desc: 'Gana una carrera de eliminación.' },
 ];
 let achDone = store.get('ach', {});
+let album = store.get('album', []), species = store.get('species', []), sucotWords = store.get('words', []), kartsUsed = store.get('kartsUsed', []), worldWins = store.get('worldWins', []);
+const FINALS = { 'ם': 'מ', 'ן': 'נ', 'ך': 'כ', 'ף': 'פ', 'ץ': 'צ' };
+function addLetters(word) {
+  let added = false;
+  for (const ch of word) { const l = FINALS[ch] || ch; if (LETRAS.includes(l) && !album.includes(l)) { album.push(l); added = true; } }
+  if (added) { store.set('album', album); if (album.length >= 22) achieve('alefbet'); }
+}
+const SPECIES = [['platano', '🌴', 'Lulav'], ['caparazon', '🍋', 'Etrog'], ['hadas', '🌿', 'Hadas'], ['arava', '🍃', 'Aravá']];
+function useSpecies(id) {
+  if (!SPECIES.some(x => x[0] === id) || species.includes(id)) return;
+  species.push(id); store.set('species', species);
+  if (species.length === 4) { achieve('especies'); setTimeout(() => showMsg('¡LAS 4 ESPECIES! 🌴🍋🌿🍃', 2), 300); }
+}
+const SUCOT_WORDS = ['סוכה', 'לולב', 'אתרוג', 'הדס', 'ערבה', 'אורח'];
+function noteWord(w) {
+  if (!SUCOT_WORDS.includes(w) || sucotWords.includes(w)) return;
+  sucotWords.push(w); store.set('words', sucotWords);
+  if (SUCOT_WORDS.every(x => sucotWords.includes(x))) achieve('enciclo');
+}
+const FEM = ['Noa', 'Tamar', 'Maya', 'Shira'];
+function pilotTitle(name) {
+  const n = Object.keys(achDone).length, f = FEM.includes(name);
+  const t = n >= 14 ? 'la Leyenda' : n >= 8 ? (f ? 'la Sabia' : 'el Sabio') : n >= 3 ? (f ? 'la Veloz' : 'el Veloz') : (f ? 'la Novata' : 'el Novato');
+  return name + ' ' + t;
+}
 function achieve(id) {
   if (achDone[id]) return;
   const a = ACH.find(x => x.id === id); if (!a) return;
   achDone[id] = Date.now(); store.set('ach', achDone);
   toast(`🏅 ¡Logro! ${a.icon} ${a.name}`, 2.8);
+  if (typeof renderTitle === 'function') renderTitle();
 }
 
 /* ---------- Estado de carrera ---------- */
@@ -1282,7 +1344,8 @@ function resetRace() {
     k.idx = N - 6 - row * 5 - colm * 2;
     k.lat = colm ? -5 : 5;
     k.pos.copy(at(k.idx, k.lat)); k.h = headingAt(k.idx);
-    Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0, invincible: 0, blind: 0, slowT: 0, honey: 0, itemN: 0, prevCurv: 0, aiSkill: [0.35, 0.65, 0.95][diff] + rnd(-0.1, 0.1), out: false, stall: 0, jy: 0, jv: 0, trick: false, trickT: 0, prevSlopeJ: 0, onPad: false, draftT: 0, fruits: 0, prevDrift: false, rocketT: null });
+    Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0, invincible: 0, blind: 0, slowT: 0, honey: 0, itemN: 0, prevCurv: 0, aiSkill: [0.35, 0.65, 0.95][diff] + rnd(-0.1, 0.1), out: false, stall: 0, jy: 0, jv: 0, trick: false, trickT: 0, prevSlopeJ: 0, onPad: false, draftT: 0, fruits: 0, prevDrift: false, rocketT: null, mudT: false });
+    k.worst = 0;
     k.isPlayer = k === player;
     k.base = k.isPlayer ? (KART_TIERS.find(t => t.id === kartTierId) || KART_TIERS[0]).mult : DIFF[diff] + rnd(-0.03, 0.03) + (slot < 4 ? 0.015 : 0);
     k.skill = k.base;
@@ -1343,7 +1406,7 @@ function physics(k, c, dt) {
     max *= 1 + k.fruits * 0.012;                                        // frutas de la cosecha
     if (k.slope < 0) max *= 1 + Math.min(0.22, -k.slope * 1.6);           // bajada: más rápido
     k.speed -= Math.sin(k.slope || 0) * 32 * dt;                         // subida: cuesta
-    if (nearSpot(MUD_SPOTS, k.pos.x, k.pos.z)) max *= 0.35;
+    if (nearSpot(MUD_SPOTS, k.pos.x, k.pos.z)) { max *= 0.35; k.mudT = true; }
     const onPad = nearSpot(BOOST_SPOTS, k.pos.x, k.pos.z);
     if (onPad) k.boost = Math.max(k.boost, 1.2);
     if (onPad && !k.onPad && k.jy <= 0 && k.speed > 25) launch(k, 7.5);   // las rampas hacen saltar
@@ -1806,7 +1869,8 @@ function frame(now) {
     if (!player.finished && player.lap > lastLapShown && player.lap < LAPS) {
       lastLapShown = player.lap; sfx.lap(); showMsg(player.lap === LAPS - 1 ? '¡ÚLTIMA VUELTA!' : 'VUELTA ' + (player.lap + 1), 1.6);
     }
-    if (finishT > 0) { finishT -= dt; if (finishT <= 0) showResults(); }
+    if (raceT > 20 && !player.finished && !player.out) player.worst = Math.max(player.worst || 0, ranking().indexOf(player) + 1);
+  if (finishT > 0) { finishT -= dt; if (finishT <= 0) showResults(); }
     updateHUD(dt);
   }
 
@@ -1850,9 +1914,22 @@ function showResults() {
   }
   $('resTitle').textContent = mode === 'crono' ? (newRecord ? '¡NUEVO RÉCORD!' : 'TU TIEMPO: ' + fmt(player.time))
     : player.out ? `ELIMINADO · ${p}º` : p === 1 ? '¡HAS GANADO!' : p <= 3 ? `¡PODIO! ${p}º` : `LLEGAS ${p}º`;
+  if (player.finished) {
+    if (!kartsUsed.includes(kartTierId)) { kartsUsed.push(kartTierId); store.set('kartsUsed', kartsUsed); }
+    if (KART_TIERS.every(t => kartsUsed.includes(t.id))) achieve('garaje');
+    if (mode !== 'crono' && p === 1) {
+      achieve('victoria');
+      if (!player.mudT) achieve('limpio');
+      if (mode === 'elim') achieve('supervive');
+      if (!worldWins.includes(WORLD.id)) { worldWins.push(WORLD.id); store.set('worldWins', worldWins); }
+      if (WORLDS.every(w => worldWins.includes(w.id))) achieve('mundos');
+    }
+    if (mode !== 'crono' && p <= 3 && (player.worst || 0) >= 6) achieve('remontada');
+    if (activity === 'espejo' && stats.length >= 5 && !stats.some(x => x.role === 'confuse')) achieve('ojo');
+  }
   const earned = starsFor(p, stats), before = totalStars;
   totalStars += earned; store.set('stars', totalStars); renderStarBadge();
-  if (newRecord) store.set(recKey(), player.time);
+  if (newRecord) { store.set(recKey(), player.time); achieve('crono'); }
   $('resStars').textContent = '⭐'.repeat(earned) + '☆'.repeat(3 - earned);
   const newly = [...KART_TIERS, ...ITEM_UNLOCKS, ...WORLDS].filter(x => x.need > before && x.need <= totalStars);
   const un = $('unlockMsg');
@@ -1901,7 +1978,7 @@ function setPause(p) {
 $('chars').innerHTML = PILOTS.map((p, i) => `<button class="char" data-i="${i}" aria-pressed="${i === chosen}"><i style="background:${p.color}"></i>${p.name}</button>`).join('');
 $('chars').addEventListener('click', e => {
   const b = e.target.closest('.char'); if (!b) return;
-  chosen = +b.dataset.i; store.set('pilot', chosen);
+  chosen = +b.dataset.i; store.set('pilot', chosen); renderTitle();
   $('chars').querySelectorAll('.char').forEach(x => x.setAttribute('aria-pressed', x === b));
   resetRace();
 });
@@ -1999,6 +2076,24 @@ $('invSBtn').onclick = () => { invSteer = !invSteer; store.set('invS', invSteer)
 $('invPBtn').onclick = () => { invPitch = !invPitch; store.set('invP', invPitch); renderControlToggles(); };
 renderPairs(); renderControlToggles(); renderStarBadge();
 renderToggles();
+function renderTitle() { const t = $('pilotTitle'); if (t) t.textContent = '🏅 ' + pilotTitle(PILOTS[chosen].name); }
+function openAlbum() {
+  $('albTitle').textContent = pilotTitle(PILOTS[chosen].name);
+  $('albSpecies').innerHTML = SPECIES.map(([id, ic, nm]) => `<div class="char${species.includes(id) ? '' : ' locked'}" style="font-size:26px">${ic}<small style="font-size:11px">${nm}</small></div>`).join('');
+  $('albCount').textContent = `(${album.length}/22)`;
+  $('albLetters').innerHTML = LETRAS.map(l => album.includes(l)
+    ? `<button class="char" data-l="${l}" style="font-size:28px;font-family:serif">${l}<small>${NOMBRE_LETRA[l]}</small></button>`
+    : `<div class="char locked" style="font-size:24px">?</div>`).join('');
+  $('albKartCount').textContent = `(${kartsUsed.length}/${KART_TIERS.length})`;
+  $('albKarts').innerHTML = KART_TIERS.map(t => `<div class="char${kartsUsed.includes(t.id) ? '' : ' locked'}">${kartsUsed.includes(t.id) ? '🏅 ' : ''}${t.name}</div>`).join('');
+  $('albAchCount').textContent = `(${Object.keys(achDone).length}/${ACH.length})`;
+  $('albAch').innerHTML = ACH.map(a => `<div style="display:flex;gap:10px;align-items:center;background:var(--ink-2);border-radius:10px;padding:8px 10px;${achDone[a.id] ? '' : 'opacity:.45'}"><span style="font-size:24px">${achDone[a.id] ? a.icon : '🔒'}</span><span><b>${a.name}</b><br><small style="color:var(--mute)">${a.desc}</small></span></div>`).join('');
+  $('menu').hidden = true; $('album').hidden = false;
+}
+$('albumBtn').onclick = openAlbum;
+$('albClose').onclick = () => { $('album').hidden = true; $('menu').hidden = false; };
+$('albLetters').addEventListener('click', e => { const b = e.target.closest('[data-l]'); if (b) { initAudio(); say(NOMBRE_LETRA[b.dataset.l]); } });
+renderTitle();
 $('goBtn').onclick = startRace; $('againBtn').onclick = reallyStartRace;
 $('ccTilt').onclick = () => { control = 'tilt'; store.set('control', control); renderControlToggles(); applyControlClass(); reallyStartRace(); };
 $('ccButtons').onclick = () => { control = 'buttons'; store.set('control', control); renderControlToggles(); applyControlClass(); reallyStartRace(); };
