@@ -468,7 +468,12 @@ for (let i = 0; i < N; i++) {
 }
 let L = 0; for (let i = 0; i < N; i++) L += pts[i].distanceTo(pts[(i + 1) % N]);
 const SEG = L / N;
-const at = (i, lat, y = 0) => { i = ((Math.round(i) % N) + N) % N; const p = pts[i], n = nor[i]; return new V3(p.x + n.x * lat, y, p.z + n.z * lat); };
+// Colinas: dos tramos donde la pista sube y baja (la salida y las gradas quedan en llano)
+const HILLS = [[0.21, 0.45, 12], [0.59, 0.79, 8]];
+const EL = []; for (let i = 0; i < N; i++) { const f = i / N; let e = 0; for (const [a, b, H] of HILLS) if (f > a && f < b) e += H * (1 - Math.cos(TAU * (f - a) / (b - a))) / 2; EL.push(e); }
+const elev = i => EL[((Math.round(i) % N) + N) % N];
+const slopeAt = i => Math.atan((elev(i + 2) - elev(i - 2)) / (4 * SEG));
+const at = (i, lat, y = 0) => { i = ((Math.round(i) % N) + N) % N; const p = pts[i], n = nor[i]; return new V3(p.x + n.x * lat, y + EL[i], p.z + n.z * lat); };
 const headingAt = i => { const t = tan[((i % N) + N) % N]; return Math.atan2(t.x, t.z); };
 
 // Asfalto
@@ -483,7 +488,8 @@ roadTex.wrapT = THREE.RepeatWrapping;
   const pos = [], uv = [], idx = [];
   for (let i = 0; i <= N; i++) {
     const p = pts[i % N], n = nor[i % N], v = i * SEG / 26;
-    pos.push(p.x + n.x * HW, 0, p.z + n.z * HW, p.x - n.x * HW, 0, p.z - n.z * HW);
+    const e = EL[i % N];
+    pos.push(p.x + n.x * HW, e, p.z + n.z * HW, p.x - n.x * HW, e, p.z - n.z * HW);
     uv.push(0, v, 1, v);
     if (i < N) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
   }
@@ -498,7 +504,8 @@ function strip(o1, y1, o2, y2, colorFn, offset) {
   const pos = [], col = [], c = new THREE.Color();
   for (let i = 0; i < N; i++) {
     const a = pts[i], b = pts[(i + 1) % N], na = nor[i], nb = nor[(i + 1) % N];
-    const v = [[a, na, o1, y1], [a, na, o2, y2], [b, nb, o1, y1], [b, nb, o2, y2]].map(([p, n, o, y]) => [p.x + n.x * o, y, p.z + n.z * o]);
+    const ea = EL[i], eb = EL[(i + 1) % N];
+    const v = [[a, na, o1, y1, ea], [a, na, o2, y2, ea], [b, nb, o1, y1, eb], [b, nb, o2, y2, eb]].map(([p, n, o, y, e]) => [p.x + n.x * o, y === null ? -0.05 : y + e, p.z + n.z * o]);
     [0, 2, 1, 1, 2, 3].forEach(k => pos.push(...v[k]));
     c.set(colorFn(i)); for (let k = 0; k < 6; k++) col.push(c.r, c.g, c.b);
   }
@@ -517,6 +524,9 @@ strip(-WALL - 0.6, 0, -WALL - 0.6, 1.3, band(6, '#1f6fd1', '#f6f6f6'));
 // Arena bajo la valla
 strip(HW + 1.8, 0, WALL + 0.6, 0, () => '#e7d49a', true);
 strip(-HW - 1.8, 0, -WALL - 0.6, 0, () => '#e7d49a', true);
+// Taludes de hierba bajo la pista elevada
+strip(WALL + 0.6, 0, WALL + 13, null, () => WORLD.grass[2], true);
+strip(-WALL - 0.6, 0, -WALL - 13, null, () => WORLD.grass[2], true);
 
 // Hierba
 const grassTex = tex(128, 128, (g, w, h) => { g.fillStyle = WORLD.grass[0]; g.fillRect(0, 0, w, h); noise(g, w, h, 900, WORLD.grass.slice(1)); });
@@ -536,7 +546,7 @@ const boostMat = new THREE.MeshBasicMaterial({ map: boostTex, polygonOffset: tru
 const MUD_SPOTS = [], BOOST_SPOTS = [];
 for (const f of [0.30, 0.62]) {
   const i = Math.floor(f * N), p = at(i, 0), m = new THREE.Mesh(new THREE.PlaneGeometry(6, 9), mudMat);
-  m.rotation.x = -Math.PI / 2; m.rotation.z = headingAt(i); m.position.set(p.x, 0.02, p.z); scene.add(m);
+  m.rotation.x = -Math.PI / 2; const mg = new THREE.Group(); mg.add(m); mg.rotation.order = 'YXZ'; mg.rotation.y = headingAt(i); mg.rotation.x = -slopeAt(i); mg.position.set(p.x, p.y + 0.03, p.z); scene.add(mg);
   MUD_SPOTS.push({ x: p.x, z: p.z, r: 3.6, i });
 }
 boostTex.wrapS = boostTex.wrapT = THREE.RepeatWrapping; boostTex.repeat.set(1, 2);
@@ -545,7 +555,7 @@ function boostPad(i, lat, w, l) {
   const p = at(i, lat), g = new THREE.Group();
   const pad = new THREE.Mesh(new THREE.PlaneGeometry(w, l), boostMat); pad.rotation.x = -Math.PI / 2; g.add(pad);
   for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.25, l), boostEdge); e.position.set(sx * w / 2, 0.12, 0); g.add(e); }
-  g.rotation.y = headingAt(i); g.position.set(p.x, 0.07, p.z); scene.add(g);
+  g.rotation.order = 'YXZ'; g.rotation.y = headingAt(i); g.rotation.x = -slopeAt(i); g.position.set(p.x, p.y + 0.07, p.z); scene.add(g);
   BOOST_SPOTS.push({ x: p.x, z: p.z, r: Math.max(w, l) / 2 + 0.4, i, lat });
 }
 [[0.10, 5], [0.24, -6], [0.40, 6], [0.55, -5], [0.70, 0], [0.88, 6]].forEach(([f, lat]) => boostPad(Math.floor(f * N), lat, 6, 10));
@@ -972,7 +982,7 @@ function useItem(k) {
   const f = new V3(Math.sin(k.h), 0, Math.cos(k.h));
   if (it === 'turbo') { k.boost = Math.max(k.boost, 1.6); if (k.isPlayer) sfx.boost(); }
   if (it === 'platano') {
-    const m = new THREE.Mesh(bananaG, bananaM); m.position.copy(k.pos).addScaledVector(f, -4.5); m.position.y = 1.1;
+    const m = new THREE.Mesh(bananaG, bananaM); m.position.copy(k.pos).addScaledVector(f, -4.5); m.position.y = k.pos.y + 1.1;
     scene.add(m); bananas.push({ mesh: m, pos: m.position, owner: k, t: 0 });
   }
   if (it === 'caparazon') {
@@ -1205,6 +1215,8 @@ function updateTrack(k) {
   const p = pts[best], n = nor[best];
   k.lat = (k.pos.x - p.x) * n.x + (k.pos.z - p.z) * n.z;
   k.offroad = Math.abs(k.lat) > HW + 1.9;
+  k.pos.y = elev(best);
+  k.slope = slopeAt(best) * Math.cos(wrapA(k.h - headingAt(best)));   // pendiente en el sentido de la marcha
   if (Math.abs(k.lat) > WALL) {
     const s = Math.sign(k.lat), push = k.lat - s * WALL;
     k.pos.x -= n.x * push; k.pos.z -= n.z * push; k.lat = s * WALL;
@@ -1226,6 +1238,8 @@ function physics(k, c, dt) {
     else if (k.boost > 0) { max = 78; k.boost -= dt; }
     else if (c.throttle != null) max *= c.throttle;
     if (k.slowT > 0) max *= 0.45;
+    if (k.slope < 0) max *= 1 + Math.min(0.22, -k.slope * 1.6);           // bajada: más rápido
+    k.speed -= Math.sin(k.slope || 0) * 32 * dt;                         // subida: cuesta
     if (nearSpot(MUD_SPOTS, k.pos.x, k.pos.z)) max *= 0.35;
     if (nearSpot(BOOST_SPOTS, k.pos.x, k.pos.z)) k.boost = Math.max(k.boost, 1.2);
     if (c.gas) k.speed += (k.boost > 0 ? 70 : 27) * dt;
@@ -1364,8 +1378,9 @@ function enableTilt() {
 function applyControlClass() { document.body.classList.toggle('tilt', tiltOn()); $('tiltOpts').hidden = !tiltOn(); }
 
 function syncMesh(k, dt) {
-  k.root.position.set(k.pos.x, 0, k.pos.z);
-  k.root.rotation.y = k.h;
+  k.root.position.set(k.pos.x, k.pos.y, k.pos.z);
+  k.root.rotation.order = 'YXZ'; k.root.rotation.y = k.h;
+  k.root.rotation.x += (-(k.slope || 0) - k.root.rotation.x) * Math.min(1, dt * 8 || 1);
   if (k.hop > 0) { k.hop -= dt; k.vis.position.y = Math.sin((0.22 - k.hop) / 0.22 * Math.PI) * 0.7; } else k.vis.position.y = k.offroad ? Math.sin(raceT * 40 + k.id) * 0.06 : 0;
   const spin = k.speed * dt / 0.65;
   k.wheels.forEach(w => w.rotation.x += spin);
@@ -1417,7 +1432,7 @@ function updateObjects(dt) {
   shells = shells.filter(s => {
     s.t += dt; s.life -= dt; s.s += s.dir * 100 * dt / SEG;
     const i0 = Math.floor(s.s), f = s.s - i0, a = at(i0, s.lat), b = at(i0 + 1, s.lat);
-    s.mesh.position.set(a.x + (b.x - a.x) * f, 0.35, a.z + (b.z - a.z) * f); s.mesh.rotation.y += dt * 12;
+    s.mesh.position.set(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f + 0.35, a.z + (b.z - a.z) * f); s.mesh.rotation.y += dt * 12;
     if (s.life <= 0) { scene.remove(s.mesh); return false; }
     for (const k of karts) {
       if (k === s.owner && s.t < 0.5) continue;
@@ -1625,9 +1640,9 @@ function frame(now) {
   // Cámara de persecución
   camH += wrapA(player.h - camH) * Math.min(1, dt * 5.5);
   const back = 12, fwdx = Math.sin(camH), fwdz = Math.cos(camH);
-  const want = new V3(player.pos.x - fwdx * back, 5.4, player.pos.z - fwdz * back);
+  const want = new V3(player.pos.x - fwdx * back, 5.4 + elev(player.idx - 4), player.pos.z - fwdz * back);
   camera.position.lerp(want, Math.min(1, dt * 9));
-  camera.lookAt(player.pos.x + Math.sin(player.h) * 7, 1.8, player.pos.z + Math.cos(player.h) * 7);
+  camera.lookAt(player.pos.x + Math.sin(player.h) * 7, 1.8 + elev(player.idx + 2), player.pos.z + Math.cos(player.h) * 7);
   const baseFov = camera.aspect < 1 ? 86 : 70;
   camera.fov += ((player.boost > 0 ? baseFov + 12 : baseFov) - camera.fov) * Math.min(1, dt * 4); camera.updateProjectionMatrix();
 
