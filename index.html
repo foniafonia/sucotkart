@@ -372,6 +372,7 @@ if (!kartsUnlocked().some(t => t.id === kartTierId)) kartTierId = 'clasico';
 
 const ITEM_UNLOCKS = [
   { id: 'rayo',     name: 'Arma: Rayo',     icon: '🌩️', weight: 2, need: 10, lore: 'Ya sabes aturdir a quien vaya delante.' },
+  { id: 'hadas',    name: 'Arma: Hadas',    icon: '🌿', weight: 2, need: 20, lore: 'Al que le da se le nubla la vista un ratito.' },
   { id: 'estrella', name: 'Arma: Estrella', icon: '⭐', weight: 2, need: 30, lore: 'Unos segundos en los que nada te para.' },
 ];
 function activeItems() {
@@ -689,7 +690,7 @@ function makeKart(pilot) {
 const karts = PILOTS.map((p, i) => Object.assign(makeKart(p), {
   id: i, name: p.name, color: p.color, pos: new V3(), h: 0, speed: 0, idx: 0, lap: -1, prog: 0, lat: 0,
   offroad: false, drifting: false, driftDir: 0, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0,
-  isPlayer: false, finished: false, time: 0, skill: 1, base: 1, lane: 0, laneT: 0, laneTarget: 0, itemT: 0, invincible: 0,
+  isPlayer: false, finished: false, time: 0, skill: 1, base: 1, lane: 0, laneT: 0, laneTarget: 0, itemT: 0, invincible: 0, blind: 0,
 }));
 
 /* ---------- Cajas y objetos ---------- */
@@ -754,6 +755,8 @@ const bananaG = new THREE.ConeGeometry(0.4, 2.4, 7);       // punta del lulav
 const bananaM = lam(0x3a8f3a);
 const shellG = new THREE.SphereGeometry(1, 12, 10);         // etrog (cidra)
 const shellM = lam(0xe8c93a), shellBase = lam(0x9a7a1f);
+const hadasG = new THREE.SphereGeometry(0.32, 6, 5);        // hoja de hadas (mirto)
+const hadasM = lam(0x2f6b2f);
 let bananas = [], shells = [];
 
 function pickItem() {
@@ -776,11 +779,18 @@ function useItem(k) {
     const back = k.isPlayer ? input.brake : false;   // mantén frenar + objeto para tirarlo hacia atrás
     const g = new THREE.Group(); const top = new THREE.Mesh(shellG, shellM); g.add(top);
     const stem = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.5, 6), shellBase); stem.position.y = 1.05; g.add(stem);
-    scene.add(g); shells.push({ mesh: g, s: k.idx + (back ? -3 : 3), dir: back ? -1 : 1, lat: k.lat, owner: k, life: 7, t: 0 });
+    scene.add(g); shells.push({ mesh: g, s: k.idx + (back ? -3 : 3), dir: back ? -1 : 1, lat: k.lat, owner: k, life: 7, t: 0, effect: 'spin' });
     if (k.isPlayer) sfx.shoot();
   }
   if (it === 'rayo') {                    // aturde a todos los que van por delante
     karts.forEach(o => { if (o !== k && o.prog > k.prog) spinOut(o); });
+    if (k.isPlayer) sfx.shoot();
+  }
+  if (it === 'hadas') {                   // nubla la vista al que le da, sin girarlo
+    const back = k.isPlayer ? input.brake : false;
+    const g = new THREE.Group();
+    for (const [dx, dz] of [[0, 0], [0.22, 0.12], [-0.22, -0.1]]) { const l = new THREE.Mesh(hadasG, hadasM); l.position.set(dx, dz, 0); g.add(l); }
+    scene.add(g); shells.push({ mesh: g, s: k.idx + (back ? -3 : 3), dir: back ? -1 : 1, lat: k.lat, owner: k, life: 7, t: 0, effect: 'blind' });
     if (k.isPlayer) sfx.shoot();
   }
   if (it === 'estrella') {                // invencible y a tope de velocidad un rato
@@ -948,7 +958,7 @@ function resetRace() {
     k.idx = N - 6 - row * 5 - colm * 2;
     k.lat = colm ? -5 : 5;
     k.pos.copy(at(k.idx, k.lat)); k.h = headingAt(k.idx);
-    Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0, invincible: 0 });
+    Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0, invincible: 0, blind: 0 });
     k.isPlayer = k === player;
     k.base = k.isPlayer ? (KART_TIERS.find(t => t.id === kartTierId) || KART_TIERS[0]).mult : DIFF[diff] + rnd(-0.03, 0.03) + (slot < 4 ? 0.015 : 0);
     k.skill = k.base;
@@ -981,6 +991,7 @@ function updateTrack(k) {
 
 function physics(k, c, dt) {
   if (k.invincible > 0) k.invincible -= dt;
+  if (k.blind > 0) k.blind -= dt;
   if (k.spin > 0) {
     k.spin -= dt; k.speed *= Math.pow(0.15, dt);
     k.vis.rotation.y += dt * 13;
@@ -1174,7 +1185,11 @@ function updateObjects(dt) {
     for (const k of karts) {
       if (k === s.owner && s.t < 0.5) continue;
       const dx = k.pos.x - s.mesh.position.x, dz = k.pos.z - s.mesh.position.z;
-      if (dx * dx + dz * dz < 7) { spinOut(k); scene.remove(s.mesh); return false; }
+      if (dx * dx + dz * dz < 7) {
+        if (s.effect === 'blind') { if (k.invincible <= 0) k.blind = 3.5; if (k.isPlayer) sfx.hit(); }
+        else spinOut(k);
+        scene.remove(s.mesh); return false;
+      }
     }
     for (let i = 0; i < bananas.length; i++) {
       const bn = bananas[i], dx = bn.pos.x - s.mesh.position.x, dz = bn.pos.z - s.mesh.position.z;
@@ -1361,6 +1376,9 @@ function frame(now) {
     eng.frequency.value = 55 + Math.abs(player.speed) * 2.1 + (player.boost > 0 ? 35 : 0);
     engLP.frequency.value = 400 + Math.abs(player.speed) * 12;
   }
+  // Hadas: nubla la vista un momento
+  const bl = player.blind > 0 ? Math.min(1, player.blind / 3.5) : 0;
+  renderer.domElement.style.filter = bl > 0 ? `blur(${bl * 7}px) brightness(${1 - bl * 0.45}) saturate(${1 - bl * 0.5})` : '';
   renderer.render(scene, camera);
 }
 
