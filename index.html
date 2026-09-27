@@ -193,7 +193,7 @@
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
         <div>
           <h1>SUCOT KART</h1>
-          <p class="sub">Circuito de la Sucá · 3 vueltas · 8 pilotos</p>
+          <p class="sub" id="subTitle">Circuito de la Sucá · 3 vueltas · 8 pilotos</p>
         </div>
         <div style="text-align:right">
           <div id="starBadge" style="font:800 15px var(--body);background:var(--ink-2);border-radius:10px;padding:6px 10px;white-space:nowrap">⭐ 0</div>
@@ -206,6 +206,9 @@
       <div class="chars" id="kartTiers" style="grid-template-columns:repeat(3,1fr)"></div>
       <div class="label">Mundo</div>
       <div class="chars" id="worlds" style="grid-template-columns:repeat(2,1fr)"></div>
+      <div class="label">Modo de juego</div>
+      <div class="seg" id="modes"></div>
+      <p class="help" id="modeHelp" style="margin:4px 0 0"></p>
       <div class="actBox">
         <div class="label" style="color:var(--sun)">🗣️ Actividad de logopedia</div>
         <p class="help" style="margin:2px 0 8px">Elige una para que el juego hable y pida letras, sílabas o palabras. "Libre" es la carrera clásica, sin lenguaje.</p>
@@ -227,7 +230,7 @@
       <button class="go" id="goBtn">¡A CORRER!</button>
       <p class="help" id="actHelp"></p>
       <p class="help" id="helpKeys"><kbd>←</kbd> <kbd>→</kbd> girar · <kbd>↑</kbd> acelerar · <kbd>↓</kbd> frenar · <kbd>Espacio</kbd> derrapar · <kbd>X</kbd> usar objeto.<br>Mantén el derrape en las curvas: al soltar, las chispas azules, naranjas o moradas te dan turbo.</p>
-      <p class="help" id="helpTouch" hidden>El kart acelera solo. Gira con ◀ ▶. Mantén DERRAPE en las curvas y suéltalo para ganar turbo. Las cajas de colores dan objetos: turbo ⚡, lulav 🌴 y etrog 🍋. Mejor con el móvil en horizontal.</p>
+      <p class="help" id="helpTouch" hidden>El kart acelera solo. Gira con ◀ ▶. Mantén DERRAPE en las curvas y suéltalo para ganar turbo. Las cajas de colores dan objetos: turbo ⚡, lulav 🌴 y etrog 🍋. Pisa las rampas naranjas con flechas para ir más rápido y esquiva el barro. Mejor con el móvil en horizontal.</p>
       <p class="help" style="opacity:.6;font-size:11px">🛒 Sucá Creativa · encargos y productos de temática judía: <a href="mailto:laveletas@hotmail.com" style="color:var(--sun)">laveletas@hotmail.com</a></p>
       <p class="help" style="opacity:.55;font-size:11px">Música: "Bonkers for Arcades" de Eric Matyas, soundimage.org.</p>
     </div>
@@ -328,7 +331,7 @@ const PILOTS = [
   { name: 'Shira', color: '#8338ec', helmet: '#ffd23f' },
   { name: 'Dan',   color: '#6a994e', helmet: '#fff8e7' },
 ];
-const DIFF = [0.84, 0.92, 0.99];              // velocidad base de los rivales
+const DIFF = [0.88, 0.99, 1.09];              // velocidad base de los rivales
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -345,6 +348,10 @@ const store = {
 let totalStars = store.get('stars', 0);
 function starsFor(pos, stats) {
   let stars = pos === 1 ? 3 : pos <= 3 ? 2 : 1;
+  if (mode === 'crono') {
+    const rec = store.get(recKey(), 0);
+    stars = newRecord ? 3 : rec && player.time <= rec * 1.08 ? 2 : 1;
+  }
   if (activity !== 'libre' && stats.length) {
     const ok = stats.filter(s => activity === 'espejo' ? s.role === 'target' : s.ok).length;
     const acc = ok / stats.length;
@@ -367,10 +374,22 @@ function renderStarBadge() {
 const WORLDS = [
   { id: 'suca',  name: 'Circuito de la Sucá', need: 0,  sky: ['#3ea6f2', '#9fd9ff', '#d6f0ff'], fog: 0xd6f0ff,
     hemiSky: 0xdff4ff, hemiGround: 0x5b8a3a, sun: 0xfff2d6, mountain: 0x7fa37a, snow: 0xf3f7ff, roof: 0x6b8e23,
+    grass: ['#6cbf4a', '#5fb040', '#78c955', '#63b746'], light: 0.95,
     lore: 'Tu circuito de siempre, entre las sucás del barrio.' },
-  { id: 'kotel', name: 'Explanada del Kotel', need: 50, sky: ['#f5c463', '#f2d9a0', '#fdf0d8'], fog: 0xf2d9a0,
+  { id: 'noche', name: 'Jerusalén de noche', need: 4, sky: ['#070b24', '#1b2350', '#3b3f78'], fog: 0x1b2350,
+    hemiSky: 0x8fa0ff, hemiGround: 0x1d2a3a, sun: 0xbfd0ff, mountain: 0x3a4466, snow: 0xc9d4ff, roof: 0x4a5a8a,
+    grass: ['#2f5a3a', '#284e32', '#376842', '#2b5436'], light: 0.7, night: true,
+    track: [[0,-110],[0,-260],[60,-360],[180,-380],[260,-300],[220,-200],[140,-160],[140,-60],[220,0],[340,20],[400,120],[340,220],[220,220],[140,300],[20,340],[-120,320],[-200,220],[-140,140],[-220,60],[-160,-20],[-60,20],[0,0]],
+    lore: 'Carrera bajo las estrellas de Sucot, con la luna llena y curvas cerradas.' },
+  { id: 'kotel', name: 'Explanada del Kotel', need: 8, sky: ['#f5c463', '#f2d9a0', '#fdf0d8'], fog: 0xf2d9a0,
     hemiSky: 0xffe8b8, hemiGround: 0xc9a35a, sun: 0xfff0c0, mountain: 0xd8c093, snow: 0xf5e6c8, roof: 0xc9a35a,
+    grass: ['#b9c46a', '#a9b45a', '#c6cf7c', '#b0bb62'], light: 0.95,
     lore: 'Corres junto al Muro de las Lamentaciones, con sus piedras doradas.' },
+  { id: 'desierto', name: 'Desierto del Néguev', need: 12, sky: ['#f08a3c', '#f7c27a', '#fde6c2'], fog: 0xf7d9a8,
+    hemiSky: 0xfff0d0, hemiGround: 0xc98f4a, sun: 0xffe2b0, mountain: 0xc7864a, snow: 0xe9b97a, roof: 0xa0622a,
+    grass: ['#e3b877', '#d6a864', '#ecc58a', '#dcae6c'], light: 1.0,
+    track: [[0,-110],[0,-280],[-60,-380],[-180,-400],[-300,-340],[-340,-220],[-260,-140],[-140,-140],[-100,-40],[-200,40],[-260,160],[-180,260],[-40,280],[100,260],[180,160],[300,120],[380,20],[340,-100],[220,-120],[120,-60],[40,40],[0,0]],
+    lore: 'Arena, dunas rojizas y la pista más larga del juego.' },
 ];
 const worldsUnlocked = () => WORLDS.filter(w => totalStars >= w.need);
 let worldId = store.get('world', 'suca');
@@ -381,18 +400,18 @@ const WORLD = WORLDS.find(w => w.id === worldId) || WORLDS[0];
    (compartidas con FonoKart). ---------- */
 const KART_TIERS = [
   { id: 'clasico', name: 'Clásico', mult: 1.00, need: 0,  lore: 'Fiable de toda la vida.' },
-  { id: 'turbo',   name: 'Turbo',   mult: 1.08, need: 15, lore: 'El motor suena distinto ahora.' },
-  { id: 'rayo',    name: 'Rayo',    mult: 1.16, need: 40, lore: 'El más rápido del taller.' },
+  { id: 'turbo',   name: 'Turbo',   mult: 1.08, need: 5, lore: 'El motor suena distinto ahora.' },
+  { id: 'rayo',    name: 'Rayo',    mult: 1.16, need: 16, lore: 'El más rápido del taller.' },
 ];
 const kartsUnlocked = () => KART_TIERS.filter(t => totalStars >= t.need);
 let kartTierId = store.get('kart', 'clasico');
 if (!kartsUnlocked().some(t => t.id === kartTierId)) kartTierId = 'clasico';
 
 const ITEM_UNLOCKS = [
-  { id: 'rayo',     name: 'Arma: Rayo',     icon: '🌩️', weight: 2, need: 10, lore: 'Ya sabes aturdir a quien vaya delante.' },
-  { id: 'hadas',    name: 'Arma: Hadas',    icon: '🌿', weight: 2, need: 20, lore: 'Al que le da se le nubla la vista un ratito.' },
-  { id: 'estrella', name: 'Arma: Estrella', icon: '⭐', weight: 2, need: 30, lore: 'Unos segundos en los que nada te para.' },
-  { id: 'arava',    name: 'Arma: Aravá',    icon: '🍃', weight: 2, need: 40, lore: 'Completas las cuatro especies: se enreda y frena a quien le da.' },
+  { id: 'rayo',     name: 'Arma: Rayo',     icon: '🌩️', weight: 2, need: 2, lore: 'Ya sabes aturdir a quien vaya delante.' },
+  { id: 'hadas',    name: 'Arma: Hadas',    icon: '🌿', weight: 2, need: 6, lore: 'Al que le da se le nubla la vista un ratito.' },
+  { id: 'estrella', name: 'Arma: Estrella', icon: '⭐', weight: 2, need: 10, lore: 'Unos segundos en los que nada te para.' },
+  { id: 'arava',    name: 'Arma: Aravá',    icon: '🍃', weight: 2, need: 14, lore: 'Completas las cuatro especies: se enreda y frena a quien le da.' },
 ];
 function activeItems() {
   return ITEMS.concat(ITEM_UNLOCKS.filter(it => totalStars >= it.need));
@@ -404,8 +423,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(WORLD.fog, 280, 1350);
 const camera = new THREE.PerspectiveCamera(70, 1, 0.5, 2600);
-scene.add(new THREE.HemisphereLight(WORLD.hemiSky, WORLD.hemiGround, 0.95));
-const sun = new THREE.DirectionalLight(WORLD.sun, 0.75); sun.position.set(300, 500, 200); scene.add(sun);
+scene.add(new THREE.HemisphereLight(WORLD.hemiSky, WORLD.hemiGround, WORLD.light));
+const sun = new THREE.DirectionalLight(WORLD.sun, WORLD.night ? 0.45 : 0.75); sun.position.set(300, 500, 200); scene.add(sun);
 
 function tex(w, h, draw) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -423,8 +442,20 @@ scene.background = tex(4, 256, (g, w, h) => {
   g.fillStyle = gr; g.fillRect(0, 0, w, h);
 });
 
+if (WORLD.night) {                        // cielo con estrellas y luna llena
+  const sp = [];
+  for (let i = 0; i < 700; i++) {
+    const a = Math.random() * TAU, e = 0.08 + Math.random() * 1.4, r = 2200;
+    sp.push(Math.cos(a) * Math.cos(e) * r, Math.sin(e) * r, Math.sin(a) * Math.cos(e) * r);
+  }
+  const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+  scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 5, sizeAttenuation: false, fog: false })));
+  const moon = new THREE.Mesh(new THREE.SphereGeometry(70, 20, 14), new THREE.MeshBasicMaterial({ color: 0xfff6d8, fog: false }));
+  moon.position.set(-900, 800, -1400); scene.add(moon);
+}
+
 /* ---------- Trazado ---------- */
-const RAW = [[0,-110],[0,-220],[40,-320],[150,-360],[260,-320],[300,-220],[250,-120],[180,-80],[200,20],[320,60],[360,170],[300,260],[160,280],[40,240],[-60,300],[-180,280],[-240,180],[-200,80],[-100,60],[-40,40],[0,0]];
+const RAW = WORLD.track || [[0,-110],[0,-220],[40,-320],[150,-360],[260,-320],[300,-220],[250,-120],[180,-80],[200,20],[320,60],[360,170],[300,260],[160,280],[40,240],[-60,300],[-180,280],[-240,180],[-200,80],[-100,60],[-40,40],[0,0]];
 const curve = new THREE.CatmullRomCurve3(RAW.map(([x, z]) => new V3(x * 1.25, 0, z * 1.25)), true, 'centripetal');
 const pts = curve.getSpacedPoints(N); pts.pop();
 const tan = [], nor = [];
@@ -485,7 +516,7 @@ strip(HW + 1.8, 0, WALL + 0.6, 0, () => '#e7d49a', true);
 strip(-HW - 1.8, 0, -WALL - 0.6, 0, () => '#e7d49a', true);
 
 // Hierba
-const grassTex = tex(128, 128, (g, w, h) => { g.fillStyle = '#6cbf4a'; g.fillRect(0, 0, w, h); noise(g, w, h, 900, ['#5fb040', '#78c955', '#63b746']); });
+const grassTex = tex(128, 128, (g, w, h) => { g.fillStyle = WORLD.grass[0]; g.fillRect(0, 0, w, h); noise(g, w, h, 900, WORLD.grass.slice(1)); });
 grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping; grassTex.repeat.set(90, 90);
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(4200, 4200), new THREE.MeshLambertMaterial({ map: grassTex }));
 ground.rotation.x = -Math.PI / 2; ground.position.y = -0.02; scene.add(ground);
@@ -503,13 +534,19 @@ const MUD_SPOTS = [], BOOST_SPOTS = [];
 for (const f of [0.30, 0.62]) {
   const i = Math.floor(f * N), p = at(i, 0), m = new THREE.Mesh(new THREE.PlaneGeometry(6, 9), mudMat);
   m.rotation.x = -Math.PI / 2; m.rotation.z = headingAt(i); m.position.set(p.x, 0.02, p.z); scene.add(m);
-  MUD_SPOTS.push({ x: p.x, z: p.z, r: 3.6 });
+  MUD_SPOTS.push({ x: p.x, z: p.z, r: 3.6, i });
 }
-for (const f of [0.15, 0.48, 0.80]) for (const s of [1, -1]) {
-  const i = Math.floor(f * N), p = at(i, s * 17), m = new THREE.Mesh(new THREE.PlaneGeometry(4, 7), boostMat);
-  m.rotation.x = -Math.PI / 2; m.rotation.z = headingAt(i); m.position.set(p.x, 0.02, p.z); scene.add(m);
-  BOOST_SPOTS.push({ x: p.x, z: p.z, r: 3 });
+boostTex.wrapS = boostTex.wrapT = THREE.RepeatWrapping; boostTex.repeat.set(1, 2);
+const boostEdge = new THREE.MeshBasicMaterial({ color: 0xffd23f });
+function boostPad(i, lat, w, l) {
+  const p = at(i, lat), g = new THREE.Group();
+  const pad = new THREE.Mesh(new THREE.PlaneGeometry(w, l), boostMat); pad.rotation.x = -Math.PI / 2; g.add(pad);
+  for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.25, l), boostEdge); e.position.set(sx * w / 2, 0.12, 0); g.add(e); }
+  g.rotation.y = headingAt(i); g.position.set(p.x, 0.07, p.z); scene.add(g);
+  BOOST_SPOTS.push({ x: p.x, z: p.z, r: Math.max(w, l) / 2 + 0.4, i, lat });
 }
+[[0.10, 5], [0.24, -6], [0.40, 6], [0.55, -5], [0.70, 0], [0.88, 6]].forEach(([f, lat]) => boostPad(Math.floor(f * N), lat, 6, 10));
+for (const f of [0.15, 0.48, 0.80]) for (const sd of [1, -1]) boostPad(Math.floor(f * N), sd * 16.5, 4.5, 8);
 
 // Línea de salida
 const checkTex = tex(64, 16, (g) => { for (let x = 0; x < 16; x++) for (let y = 0; y < 4; y++) { g.fillStyle = (x + y) % 2 ? '#111' : '#fff'; g.fillRect(x * 4, y * 4, 4, 4); } });
@@ -870,6 +907,7 @@ function pickItem() {
   return pool[0].id;
 }
 const itemIcon = id => (activeItems().find(i => i.id === id) || {}).icon || '';
+const aiBack = k => player.prog < k.prog && k.prog - player.prog < 60 && !player.out;   // el rival te lo tira si le sigues de cerca
 function useItem(k) {
   if (!k.item || k.rolling > 0) return;
   const it = k.item; k.item = null;
@@ -880,7 +918,7 @@ function useItem(k) {
     scene.add(m); bananas.push({ mesh: m, pos: m.position, owner: k, t: 0 });
   }
   if (it === 'caparazon') {
-    const back = k.isPlayer ? input.brake : false;   // mantén frenar + objeto para tirarlo hacia atrás
+    const back = k.isPlayer ? input.brake : aiBack(k);   // mantén frenar + objeto para tirarlo hacia atrás
     const g = new THREE.Group(); const top = new THREE.Mesh(shellG, shellM); g.add(top);
     const stem = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.5, 6), shellBase); stem.position.y = 1.05; g.add(stem);
     scene.add(g); shells.push({ mesh: g, s: k.idx + (back ? -3 : 3), dir: back ? -1 : 1, lat: k.lat, owner: k, life: 7, t: 0, effect: 'spin' });
@@ -891,14 +929,14 @@ function useItem(k) {
     if (k.isPlayer) sfx.shoot();
   }
   if (it === 'hadas') {                   // nubla la vista al que le da, sin girarlo
-    const back = k.isPlayer ? input.brake : false;
+    const back = k.isPlayer ? input.brake : aiBack(k);
     const g = new THREE.Group();
     for (const [dx, dz] of [[0, 0], [0.22, 0.12], [-0.22, -0.1]]) { const l = new THREE.Mesh(hadasG, hadasM); l.position.set(dx, dz, 0); g.add(l); }
     scene.add(g); shells.push({ mesh: g, s: k.idx + (back ? -3 : 3), dir: back ? -1 : 1, lat: k.lat, owner: k, life: 7, t: 0, effect: 'blind' });
     if (k.isPlayer) sfx.shoot();
   }
   if (it === 'arava') {                   // enreda y frena al que le da, sin girarlo
-    const back = k.isPlayer ? input.brake : false;
+    const back = k.isPlayer ? input.brake : aiBack(k);
     const g = new THREE.Group();
     for (const rot of [0, 1.2, -1.2, 2.4]) { const l = new THREE.Mesh(aravaG, aravaM); l.rotation.z = rot; g.add(l); }
     scene.add(g); shells.push({ mesh: g, s: k.idx + (back ? -3 : 3), dir: back ? -1 : 1, lat: k.lat, owner: k, life: 7, t: 0, effect: 'slow' });
@@ -1049,6 +1087,14 @@ function say(text) {
 
 /* ---------- Estado de carrera ---------- */
 let activity = store.get('act', 'palabras'); if (!ACTS.some(a => a.id === activity)) activity = 'palabras';
+const MODES = [
+  { id: 'carrera', name: 'Carrera',      help: 'Carrera normal contra 7 rivales. Gana quien llegue primero.' },
+  { id: 'crono',   name: 'Contrarreloj', help: 'Tú solo contra el reloj. Bate tu récord en este mundo: récord nuevo = 3 estrellas.' },
+  { id: 'elim',    name: 'Eliminación',  help: 'Cada vez que el primero completa una vuelta, los dos últimos quedan fuera. ¡No te quedes atrás!' },
+];
+let mode = store.get('mode', 'carrera'); if (!MODES.some(m => m.id === mode)) mode = 'carrera';
+let elimLap = 0, outCount = 0, newRecord = false;
+const recKey = () => 'rec.' + WORLD.id;
 let state = 'menu', raceT = 0, countT = 0, player = karts[0], chosen = store.get('pilot', 0), diff = store.get('diff', 1);
 let muted = store.get('muted', false), finishT = 0, boardT = 0, lastLapShown = 0;
 const input = { left: false, right: false, gas: false, brake: false, drift: false, item: false };
@@ -1069,13 +1115,16 @@ function resetRace() {
     k.idx = N - 6 - row * 5 - colm * 2;
     k.lat = colm ? -5 : 5;
     k.pos.copy(at(k.idx, k.lat)); k.h = headingAt(k.idx);
-    Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0, invincible: 0, blind: 0, slowT: 0 });
+    Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0, invincible: 0, blind: 0, slowT: 0, prevCurv: 0, aiSkill: [0.35, 0.65, 0.95][diff] + rnd(-0.1, 0.1), out: false });
     k.isPlayer = k === player;
     k.base = k.isPlayer ? (KART_TIERS.find(t => t.id === kartTierId) || KART_TIERS[0]).mult : DIFF[diff] + rnd(-0.03, 0.03) + (slot < 4 ? 0.015 : 0);
     k.skill = k.base;
     updateTrack(k); k.prog = -1 * N + k.idx;
     syncMesh(k, 0);
   });
+  karts.forEach(k => { k.root.visible = true; k.outN = 0; });
+  if (mode === 'crono') karts.forEach(k => { if (!k.isPlayer) retire(k, 0); });
+  elimLap = 0; outCount = 0; newRecord = false;
   raceT = 0; countT = 3.6; finishT = 0; lastLapShown = 0;
   camH = player.h; camera.position.copy(player.pos).add(new V3(-Math.sin(player.h) * 11, 5, -Math.cos(player.h) * 11));
   renderItem();
@@ -1145,23 +1194,32 @@ function physics(k, c, dt) {
   updateTrack(k);
 }
 
+const aheadOf = (k, i, max) => { const d = (i - k.idx + N) % N; return d > 4 && d < max; };
 function aiControl(k, dt) {
   const look = 9 + Math.floor(Math.abs(k.speed) * 0.3);
   const j = (k.idx + look) % N;
+  const t1 = tan[k.idx], t2 = tan[(k.idx + 30) % N];
+  const curv = 1 - (t1.x * t2.x + t1.z * t2.z);
+  const turnSide = Math.sign(t1.x * t2.z - t1.z * t2.x);        // hacia qué lado gira la próxima curva
   k.laneT -= dt;
-  if (k.laneT < 0) { k.laneT = rnd(1.5, 4); k.laneTarget = rnd(-7.5, 7.5); }
-  k.lane += (k.laneTarget - k.lane) * Math.min(1, dt * 0.9);
+  const pad = BOOST_SPOTS.find(b => Math.abs(b.lat) <= HW && aheadOf(k, b.i, 70));
+  const mud = MUD_SPOTS.find(m => aheadOf(k, m.i, 45));
+  if (pad && k.aiSkill > 0.4) k.laneTarget = pad.lat;                // va a por las rampas de turbo
+  else if (mud) k.laneTarget = k.lane >= 0 ? 8 : -8;                  // esquiva el barro
+  else if (curv > 0.05) k.laneTarget = -turnSide * 7;                 // se pega al interior de la curva
+  else if (k.laneT < 0) { k.laneT = rnd(1.5, 4); k.laneTarget = rnd(-6, 6); }
+  k.lane += (k.laneTarget - k.lane) * Math.min(1, dt * 1.6);
   const tp = at(j, k.lane);
   const desired = Math.atan2(tp.x - k.pos.x, tp.z - k.pos.z);
   const diffA = wrapA(desired - k.h);
-  const steer = clamp(-diffA * 2.6, -1, 1);
-  const t1 = tan[k.idx], t2 = tan[(k.idx + 26) % N];
-  const curv = 1 - (t1.x * t2.x + t1.z * t2.z);
+  const steer = clamp(-diffA * 2.8, -1, 1);
   const gap = (player.prog - k.prog) / N;
-  k.skill = k.base + clamp(gap * 0.12, -0.07, 0.09);
-  const limit = 52 * k.skill * (1 - clamp(curv * 1.6, 0, 0.32));
+  k.skill = k.base + clamp(gap * 0.3, -0.06, 0.16);                   // si se quedan atrás aprietan; si van muy por delante, aflojan un poco
+  const limit = 52 * k.skill * (1 - clamp(curv * 1.1, 0, 0.22));
+  if (curv < 0.02 && k.prevCurv > 0.12 && Math.random() < k.aiSkill) k.boost = Math.max(k.boost, 0.8);   // mini-turbo al salir de la curva
+  k.prevCurv = curv;
   if (k.item) { k.itemT -= dt; if (k.itemT <= 0) useItem(k); }
-  return { gas: k.speed < limit, brake: k.speed > limit + 8, steer, drift: false };
+  return { gas: k.speed < limit, brake: k.speed > limit + 10, steer, drift: false };
 }
 
 function playerControl() {
@@ -1278,9 +1336,9 @@ function updateObjects(dt) {
   }
   if (activity !== 'libre') {
     updateRows(dt);
-    for (const k of karts) if (!k.isPlayer && !k.item && k.rolling <= 0) {   // los rivales reciben objetos con el tiempo
+    for (const k of karts) if (!k.isPlayer && !k.out && !k.item && k.rolling <= 0) {   // los rivales reciben objetos con el tiempo
       k.aiItemT = (k.aiItemT || rnd(6, 14)) - dt;
-      if (k.aiItemT <= 0) { k.aiItemT = rnd(7, 15); k.rolling = 0.2; k.pending = pickItem(); k.itemT = rnd(1, 4); }
+      if (k.aiItemT <= 0) { k.aiItemT = rnd(4, 9) - diff; k.rolling = 0.2; k.pending = pickItem(); k.itemT = rnd(0.6, 2.5); }
     }
   }
   for (const k of karts) if (k.rolling > 0) { k.rolling -= dt; if (k.rolling <= 0) { k.item = k.pending; if (k.isPlayer) renderItem(); } }
@@ -1314,6 +1372,22 @@ function updateObjects(dt) {
     }
     return true;
   });
+}
+function retire(k, n) {                  // saca a un kart de la carrera (contrarreloj o eliminado)
+  k.out = true; k.outN = n; k.item = null; k.rolling = 0; k.speed = 0;
+  if (!k.isPlayer) { k.root.visible = false; k.pos.set(90000 + k.id * 100, 0, 90000); }
+}
+function checkElimination() {
+  const active = karts.filter(k => !k.out && !k.finished);
+  const lead = Math.max(...karts.filter(k => !k.out).map(k => k.lap));
+  if (lead <= elimLap || lead >= LAPS || active.length <= 3) return;
+  elimLap = lead;
+  const order = ranking().filter(k => !k.out && !k.finished);
+  for (const k of order.slice(-2)) {
+    retire(k, ++outCount);
+    if (k.isPlayer) { sfx.hit(); showMsg('¡ELIMINADO!', 2.5); finishT = 2.6; }
+    else if (!player.out) toast(`Fuera: ${k.name}`, 1.6);
+  }
 }
 function kartCollisions() {
   for (let a = 0; a < karts.length; a++) for (let b = a + 1; b < karts.length; b++) {
@@ -1373,7 +1447,9 @@ function setMuted(m) { muted = m; store.set('muted', m); if (master) master.gain
 /* ---------- HUD ---------- */
 const fmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return m + ':' + (s < 10 ? '0' : '') + s.toFixed(2); };
 function ranking() {
-  return karts.slice().sort((a, b) => (a.finished && b.finished) ? a.time - b.time : a.finished ? -1 : b.finished ? 1 : b.prog - a.prog);
+  const list = mode === 'crono' ? [player] : karts.slice();
+  return list.sort((a, b) => (a.out || b.out) ? (a.out ? (b.out ? b.outN - a.outN : 1) : -1)
+    : (a.finished && b.finished) ? a.time - b.time : a.finished ? -1 : b.finished ? 1 : b.prog - a.prog);
 }
 function renderItem() {
   const el = $('item'), t = $('tItem');
@@ -1401,7 +1477,7 @@ function drawMini() {
   mg.strokeStyle = '#585d6a'; mg.lineWidth = 9; mg.stroke(trackPath);
   const s = pts[0], n = nor[0]; mg.strokeStyle = '#fff'; mg.lineWidth = 4; mg.beginPath();
   mg.moveTo(mx(s.x + n.x * 14), mz(s.z + n.z * 14)); mg.lineTo(mx(s.x - n.x * 14), mz(s.z - n.z * 14)); mg.stroke();
-  for (const k of karts) if (!k.isPlayer) dot(k, 7, k.color);
+  for (const k of karts) if (!k.isPlayer && !k.out) dot(k, 7, k.color);
   dot(player, 10, player.color, true);
   function dot(k, r, c, me) { mg.beginPath(); mg.arc(mx(k.pos.x), mz(k.pos.z), r, 0, TAU); mg.fillStyle = c; mg.fill(); mg.lineWidth = me ? 4 : 2.5; mg.strokeStyle = me ? '#fff' : '#16193a'; mg.stroke(); }
 }
@@ -1415,7 +1491,10 @@ function updateHUD(dt) {
     boardT = 0.2;
     const r = ranking(), p = r.indexOf(player) + 1;
     $('pos').innerHTML = p + '<sup>º</sup>';
-    $('board').innerHTML = r.map((k, i) => `<div class="${k.isPlayer ? 'me' : ''}">${i + 1} <i style="background:${k.color}"></i>${k.name}</div>`).join('');
+    const rec = store.get(recKey(), 0);
+    $('board').innerHTML = mode === 'crono'
+      ? `<div class="me">⏱️ Récord: ${rec ? fmt(rec) : '—'}</div>`
+      : r.map((k, i) => `<div class="${k.isPlayer ? 'me' : ''}" style="${k.out ? 'opacity:.4;text-decoration:line-through' : ''}">${i + 1} <i style="background:${k.color}"></i>${k.name}</div>`).join('');
   }
   drawMini();
   if (tiltOn()) {
@@ -1462,9 +1541,10 @@ function frame(now) {
   } else {
     raceT += dt;
     const pc = playerControl();
-    if (input.item && !player.finished) { useItem(player); input.item = false; }
-    physics(player, pc, dt);
-    for (const k of karts) if (!k.isPlayer) physics(k, aiControl(k, dt), dt);
+    if (input.item && !player.finished && !player.out) { useItem(player); input.item = false; }
+    if (!player.out) physics(player, pc, dt);
+    for (const k of karts) if (!k.isPlayer && !k.out) physics(k, aiControl(k, dt), dt);
+    if (mode === 'elim' && !player.out) checkElimination();
     kartCollisions();
     updateObjects(dt);
     for (const k of karts) {
@@ -1478,6 +1558,7 @@ function frame(now) {
     updateHUD(dt);
   }
 
+  boostTex.offset.y -= dt * 1.4;
   // Cámara de persecución
   camH += wrapA(player.h - camH) * Math.min(1, dt * 5.5);
   const back = 12, fwdx = Math.sin(camH), fwdz = Math.cos(camH);
@@ -1509,9 +1590,15 @@ function showResults() {
     return { k, t, i };
   });
   const p = r.indexOf(player) + 1;
-  $('resTitle').textContent = p === 1 ? '¡HAS GANADO!' : p <= 3 ? `¡PODIO! ${p}º` : `LLEGAS ${p}º`;
+  if (mode === 'crono' && player.finished) {
+    const rec = store.get(recKey(), 0);
+    newRecord = !rec || player.time < rec;
+  }
+  $('resTitle').textContent = mode === 'crono' ? (newRecord ? '¡NUEVO RÉCORD!' : 'TU TIEMPO: ' + fmt(player.time))
+    : player.out ? `ELIMINADO · ${p}º` : p === 1 ? '¡HAS GANADO!' : p <= 3 ? `¡PODIO! ${p}º` : `LLEGAS ${p}º`;
   const earned = starsFor(p, stats), before = totalStars;
   totalStars += earned; store.set('stars', totalStars); renderStarBadge();
+  if (newRecord) store.set(recKey(), player.time);
   $('resStars').textContent = '⭐'.repeat(earned) + '☆'.repeat(3 - earned);
   const newly = [...KART_TIERS, ...ITEM_UNLOCKS, ...WORLDS].filter(x => x.need > before && x.need <= totalStars);
   const un = $('unlockMsg');
@@ -1529,7 +1616,7 @@ function showResults() {
       (bad.length ? '<ul>' + bad.map(s => `<li>Buscaba ${show(s.task.answer, s.task.optImg)} (${show(s.task.prompt, s.task.img)}) y cogió ${show(s.chosen, s.task.optImg)}</li>`).join('') + '</ul>' : '');
     lr.hidden = false;
   } else lr.hidden = true;
-  $('resTable').innerHTML = rows.map(({ k, t, i }) => `<tr class="${k.isPlayer ? 'me' : ''}"><td>${i + 1}º</td><td><span class="dot" style="background:${k.color}"></span>${k.name}${k.isPlayer ? ' (tú)' : ''}</td><td>${fmt(t)}</td></tr>`).join('');
+  $('resTable').innerHTML = rows.map(({ k, t, i }) => `<tr class="${k.isPlayer ? 'me' : ''}"><td>${i + 1}º</td><td><span class="dot" style="background:${k.color}"></span>${k.name}${k.isPlayer ? ' (tú)' : ''}</td><td>${k.out ? 'Eliminado' : fmt(t)}</td></tr>`).join('');
   $('results').hidden = false; $('hud').hidden = true;
 }
 function startRace() {
@@ -1591,6 +1678,16 @@ $('worlds').addEventListener('click', e => {
   location.reload();
 });
 renderWorlds();
+function renderModes() {
+  $('modes').innerHTML = MODES.map(m => `<button data-id="${m.id}" aria-pressed="${m.id === mode}">${m.name}</button>`).join('');
+  $('modeHelp').textContent = MODES.find(m => m.id === mode).help;
+  $('subTitle').textContent = `${WORLD.name} · ${LAPS} vueltas · ` + (mode === 'crono' ? 'contrarreloj' : mode === 'elim' ? 'eliminación' : '8 pilotos');
+}
+$('modes').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  mode = b.dataset.id; store.set('mode', mode); renderModes(); resetRace();
+});
+renderModes();
 
 $('diff').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.d === diff));
 $('diff').addEventListener('click', e => {
