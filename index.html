@@ -164,6 +164,7 @@
   <div class="board" id="board"></div>
   <div class="topbtns"><button class="iconbtn" id="pauseBtn" aria-label="Pausa">II</button></div>
   <div class="br">
+    <div class="speed" id="fruitBox" style="margin-bottom:2px">🍎 <b id="fruits">0</b>/10</div>
     <div class="speed"><b id="kmh">0</b>km/h</div>
     <div class="pos big" id="pos">5<sup>º</sup></div>
   </div>
@@ -230,7 +231,7 @@
       <button class="go" id="goBtn">¡A CORRER!</button>
       <p class="help" id="actHelp"></p>
       <p class="help" id="helpKeys"><kbd>←</kbd> <kbd>→</kbd> girar · <kbd>↑</kbd> acelerar · <kbd>↓</kbd> frenar · <kbd>Espacio</kbd> derrapar · <kbd>X</kbd> usar objeto.<br>Mantén el derrape en las curvas: al soltar, las chispas azules, naranjas o moradas te dan turbo.</p>
-      <p class="help" id="helpTouch" hidden>El kart acelera solo. Gira con ◀ ▶. Mantén DERRAPE en las curvas y suéltalo para ganar turbo. Las cajas de colores dan objetos: turbo ⚡, lulav 🌴 y etrog 🍋. Pisa las rampas naranjas con flechas para ir más rápido y esquiva el barro. Mejor con el móvil en horizontal.</p>
+      <p class="help" id="helpTouch" hidden>El kart acelera solo. Gira con ◀ ▶. Mantén DERRAPE en las curvas y suéltalo para ganar turbo. Las cajas de colores dan objetos: turbo ⚡, lulav 🌴 y etrog 🍋. Pisa las rampas naranjas con flechas para ir más rápido y esquiva el barro. Coge frutas 🍎 (hasta 10, te hacen más rápido). En lo alto de las colinas saltas: pulsa DERRAPE en el aire para hacer una pirueta y ganar turbo. Ve pegado detrás de un rival para coger rebufo. Mejor con el móvil en horizontal.</p>
       <p class="help" style="opacity:.6;font-size:11px">🛒 Sucá Creativa · encargos y productos de temática judía: <a href="mailto:laveletas@hotmail.com" style="color:var(--sun)">laveletas@hotmail.com</a></p>
       <p class="help" style="opacity:.55;font-size:11px">Música: "Bonkers for Arcades" de Eric Matyas, soundimage.org.</p>
     </div>
@@ -560,6 +561,22 @@ function boostPad(i, lat, w, l) {
 }
 [[0.10, 5], [0.24, -6], [0.40, 6], [0.55, -5], [0.70, 0], [0.88, 6]].forEach(([f, lat]) => boostPad(Math.floor(f * N), lat, 6, 10));
 for (const f of [0.15, 0.48, 0.80]) for (const sd of [1, -1]) boostPad(Math.floor(f * N), sd * 16.5, 4.5, 8);
+
+// Frutas de la cosecha: grupos repartidos por la pista
+const FRUITS = [];
+{
+  const fg = new THREE.SphereGeometry(0.55, 10, 8), leafG = new THREE.ConeGeometry(0.18, 0.4, 5);
+  const cols = [0xc81d3a, 0x7b2e8c, 0xe8a33a, 0x6a994e], leafM = new THREE.MeshLambertMaterial({ color: 0x2f6b2f });
+  [[0.06, -6], [0.18, 6], [0.33, -4], [0.47, 7], [0.60, -7], [0.75, 4], [0.92, -5]].forEach(([f, lat], gi) => {
+    for (let j = 0; j < 4; j++) {
+      const i = Math.floor(f * N) + j * 3, p = at(i, lat + (j % 2 ? 1.5 : -1.5), 1.1);
+      const g = new THREE.Group(); g.add(new THREE.Mesh(fg, new THREE.MeshLambertMaterial({ color: cols[(gi + j) % cols.length] })));
+      const lf = new THREE.Mesh(leafG, leafM); lf.position.y = 0.6; g.add(lf);
+      g.position.copy(p); scene.add(g);
+      FRUITS.push({ mesh: g, x: p.x, z: p.z, y: p.y, off: 0, ph: Math.random() * TAU });
+    }
+  });
+}
 
 // Línea de salida
 const checkTex = tex(64, 16, (g) => { for (let x = 0; x < 16; x++) for (let y = 0; y < 4; y++) { g.fillStyle = (x + y) % 2 ? '#111' : '#fff'; g.fillRect(x * 4, y * 4, 4, 4); } });
@@ -1018,6 +1035,7 @@ function useItem(k) {
 }
 function spinOut(k) {
   if (k.spin > 0 || k.invincible > 0) return;
+  k.fruits = Math.max(0, (k.fruits || 0) - 3);
   k.spin = 1.2; k.drifting = false; k.charge = 0; k.boost = 0;
   if (k.isPlayer) sfx.hit();
 }
@@ -1084,10 +1102,10 @@ function answerMirror(r, b) {
   if (b.role === 'target') {
     player.boost = Math.max(player.boost, 2.8); player.speed = Math.max(player.speed, 50);
     giveItem(player, null, 0.6);
-    sfx.ok(); showMsg('¡SÚPER TURBO!', 1.3); flashQuest('ok'); say('muy bien, la ' + r.task.say);
+    sfx.ok(); showMsg('¡SÚPER TURBO!', 1.3); flashQuest('ok'); say('muy bien, la ' + r.task.say); onStreak(true);
   } else if (b.role === 'confuse') {
     player.speed *= 0.2; player.boost = 0; player.drifting = false; player.charge = 0;
-    sfx.no(); showMsg('¡ESA ES LA ' + r.task.confuse + '!', 1.6); flashQuest('no'); say('esa es la ' + r.task.sayC);
+    sfx.no(); showMsg('¡ESA ES LA ' + r.task.confuse + '!', 1.6); flashQuest('no'); say('esa es la ' + r.task.sayC); onStreak(false);
   } else {
     giveItem(player, null, 1.1); sfx.box();
   }
@@ -1099,12 +1117,23 @@ function answer(r, b) {
   stats.push({ task: r.task, chosen: b.label, ok });
   if (ok) {
     player.boost = Math.max(player.boost, 1.3);
+    onStreak(true);
     if (!player.item && player.rolling <= 0) { player.rolling = 0.8; player.pending = pickItem(); renderItem(); }
     sfx.ok(); showMsg('¡BIEN!', 1); flashQuest('ok');
   } else {
-    player.speed *= 0.55;
+    player.speed *= 0.55; onStreak(false);
     sfx.no(); flashQuest('no');
   }
+}
+function onStreak(ok) {
+  if (!ok) { streak = 0; return; }
+  streak++;
+  if (streak % 3 === 0) {                           // racha de 3: turbo largo sin gastar objetos
+    player.boost = Math.max(player.boost, 3.5);
+    setTimeout(() => showMsg('¡RACHA DE ' + streak + '! 🔥', 1.4), 400);
+    achieve('racha');
+  }
+  if (streak >= 10) achieve('imparable');
 }
 function flashQuest(cls) { const q = $('quest'); q.classList.remove('ok', 'no'); q.classList.add(cls); questFlash = 1.2; }
 function updateRows(dt) {
@@ -1119,7 +1148,7 @@ function updateRows(dt) {
       }
       if (r.state === 'active' && r.lastD < 25 && d > N - 60) {       // pasó de largo
         r.state = 'hidden'; r.popT = 0.25;
-        if (!player.finished) stats.push({ task: r.task, chosen: null, ok: false });
+        if (!player.finished) { stats.push({ task: r.task, chosen: null, ok: false }); onStreak(false); }
       }
     } else {
       if (r.popT > 0) { r.popT -= dt; const s = Math.max(0.01, r.popT / 0.25); r.boxes.forEach(b => b.mesh.scale.set(s, s, s)); if (r.popT <= 0) r.boxes.forEach(b => b.mesh.visible = false); }
@@ -1153,6 +1182,23 @@ function say(text) {
   } catch (e) {}
 }
 
+/* ---------- Logros ---------- */
+const ACH = [
+  { id: 'cohete',   icon: '🚀', name: 'Salida cohete',     desc: 'Sal con turbo acelerando justo en el «2».' },
+  { id: 'acrobata', icon: '🤸', name: 'Acróbata',          desc: 'Haz 3 piruetas en el aire (DERRAPE mientras saltas).' },
+  { id: 'rebufo',   icon: '💨', name: 'Rebufo',            desc: 'Gana un empujón yendo pegado detrás de un rival.' },
+  { id: 'cosecha',  icon: '🍎', name: 'Cosecha completa',  desc: 'Lleva 10 frutas a la vez.' },
+  { id: 'racha',    icon: '🔥', name: 'Racha',             desc: 'Acierta 3 cajas de hebreo seguidas.' },
+  { id: 'imparable',icon: '⚡', name: 'Imparable',         desc: 'Acierta 10 cajas seguidas sin fallar.' },
+];
+let achDone = store.get('ach', {});
+function achieve(id) {
+  if (achDone[id]) return;
+  const a = ACH.find(x => x.id === id); if (!a) return;
+  achDone[id] = Date.now(); store.set('ach', achDone);
+  toast(`🏅 ¡Logro! ${a.icon} ${a.name}`, 2.8);
+}
+
 /* ---------- Estado de carrera ---------- */
 let activity = store.get('act', 'palabras'); if (!ACTS.some(a => a.id === activity)) activity = 'palabras';
 const MODES = [
@@ -1161,7 +1207,7 @@ const MODES = [
   { id: 'elim',    name: 'Eliminación',  help: 'Cada vez que el primero completa una vuelta, los dos últimos quedan fuera. ¡No te quedes atrás!' },
 ];
 let mode = store.get('mode', 'carrera'); if (!MODES.some(m => m.id === mode)) mode = 'carrera';
-let elimLap = 0, outCount = 0, newRecord = false;
+let elimLap = 0, outCount = 0, newRecord = false, streak = 0;
 const recKey = () => 'rec.' + WORLD.id;
 let state = 'menu', raceT = 0, countT = 0, player = karts[0], chosen = store.get('pilot', 0), diff = store.get('diff', 1);
 let muted = store.get('muted', false), finishT = 0, boardT = 0, lastLapShown = 0;
@@ -1183,7 +1229,7 @@ function resetRace() {
     k.idx = N - 6 - row * 5 - colm * 2;
     k.lat = colm ? -5 : 5;
     k.pos.copy(at(k.idx, k.lat)); k.h = headingAt(k.idx);
-    Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0, invincible: 0, blind: 0, slowT: 0, prevCurv: 0, aiSkill: [0.35, 0.65, 0.95][diff] + rnd(-0.1, 0.1), out: false });
+    Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0, invincible: 0, blind: 0, slowT: 0, prevCurv: 0, aiSkill: [0.35, 0.65, 0.95][diff] + rnd(-0.1, 0.1), out: false, stall: 0, jy: 0, jv: 0, trick: false, trickT: 0, prevSlopeJ: 0, onPad: false, draftT: 0, fruits: 0, prevDrift: false, rocketT: null });
     k.isPlayer = k === player;
     k.base = k.isPlayer ? (KART_TIERS.find(t => t.id === kartTierId) || KART_TIERS[0]).mult : DIFF[diff] + rnd(-0.03, 0.03) + (slot < 4 ? 0.015 : 0);
     k.skill = k.base;
@@ -1197,7 +1243,8 @@ function resetRace() {
     k.spoiler.forEach(m => m.visible = skin !== 'hejal');
   });
   if (mode === 'crono') karts.forEach(k => { if (!k.isPlayer) retire(k, 0); });
-  elimLap = 0; outCount = 0; newRecord = false;
+  elimLap = 0; outCount = 0; newRecord = false; streak = 0;
+  FRUITS.forEach(fr => { fr.off = 0; fr.mesh.visible = true; });
   raceT = 0; countT = 3.6; finishT = 0; lastLapShown = 0;
   camH = player.h; camera.position.copy(player.pos).add(new V3(-Math.sin(player.h) * 11, 5, -Math.cos(player.h) * 11));
   renderItem();
@@ -1226,6 +1273,7 @@ function updateTrack(k) {
 
 function nearSpot(spots, x, z) { for (const s of spots) { const dx = x - s.x, dz = z - s.z; if (dx * dx + dz * dz < s.r * s.r) return true; } return false; }
 function physics(k, c, dt) {
+  if (k.stall > 0) { k.stall -= dt; c = Object.assign({}, c, { gas: false }); }
   if (k.invincible > 0) k.invincible -= dt;
   if (k.blind > 0) k.blind -= dt;
   if (k.slowT > 0) k.slowT -= dt;
@@ -1238,10 +1286,14 @@ function physics(k, c, dt) {
     else if (k.boost > 0) { max = 78; k.boost -= dt; }
     else if (c.throttle != null) max *= c.throttle;
     if (k.slowT > 0) max *= 0.45;
+    max *= 1 + k.fruits * 0.012;                                        // frutas de la cosecha
     if (k.slope < 0) max *= 1 + Math.min(0.22, -k.slope * 1.6);           // bajada: más rápido
     k.speed -= Math.sin(k.slope || 0) * 32 * dt;                         // subida: cuesta
     if (nearSpot(MUD_SPOTS, k.pos.x, k.pos.z)) max *= 0.35;
-    if (nearSpot(BOOST_SPOTS, k.pos.x, k.pos.z)) k.boost = Math.max(k.boost, 1.2);
+    const onPad = nearSpot(BOOST_SPOTS, k.pos.x, k.pos.z);
+    if (onPad) k.boost = Math.max(k.boost, 1.2);
+    if (onPad && !k.onPad && k.jy <= 0 && k.speed > 25) launch(k, 7.5);   // las rampas hacen saltar
+    k.onPad = onPad;
     if (c.gas) k.speed += (k.boost > 0 ? 70 : 27) * dt;
     else if (c.brake) k.speed -= (k.speed > 0 ? 48 : 14) * dt;
     else k.speed -= Math.sign(k.speed) * Math.min(Math.abs(k.speed), 11 * dt);
@@ -1249,7 +1301,7 @@ function physics(k, c, dt) {
     k.speed = clamp(k.speed, -14, 90);
 
     // Derrape con carga de turbo
-    if (c.drift && !k.drifting && Math.abs(c.steer) > 0.25 && k.speed > 22) { k.drifting = true; k.driftDir = Math.sign(c.steer); k.charge = 0; k.hop = 0.22; }
+    if (c.drift && !k.drifting && k.jy <= 0 && Math.abs(c.steer) > 0.25 && k.speed > 22) { k.drifting = true; k.driftDir = Math.sign(c.steer); k.charge = 0; k.hop = 0.22; }
     if (k.drifting) {
       if (!c.drift || k.speed < 14 || k.offroad) {
         const b = k.charge > 2.2 ? 1.5 : k.charge > 1.25 ? 1.0 : k.charge > 0.55 ? 0.55 : 0;
@@ -1269,7 +1321,45 @@ function physics(k, c, dt) {
   }
   k.pos.x += Math.sin(k.h) * sp * dt; k.pos.z += Math.cos(k.h) * sp * dt;
   updateTrack(k);
+  // Salto en lo alto de las colinas
+  const sl = k.slope || 0;
+  if (k.jy <= 0 && k.prevSlopeJ > 0.02 && sl <= 0.02 && elev(k.idx) > 3 && k.speed > 34) launch(k, Math.min(13, k.speed * 0.2));
+  k.prevSlopeJ = sl;
+  if (k.jy > 0 || k.jv > 0) {
+    if (c.drift && !k.prevDrift && !k.trick && k.isPlayer) startTrick(k);
+    k.jv -= 32 * dt; k.jy = Math.max(0, k.jy + k.jv * dt);
+    if (k.jy <= 0) {                                                  // aterrizaje
+      k.jv = 0;
+      if (k.trick) { k.trick = false; k.boost = Math.max(k.boost, 1.0); if (k.isPlayer) { sfx.boost(); showMsg('¡PIRUETA!', 0.8); tricksDone++; if (tricksDone >= 3) achieve('acrobata'); } }
+    }
+  }
+  k.prevDrift = !!c.drift;
+  // Rebufo: pegado detrás de otro kart un rato = empujón
+  let behind = false;
+  if (k.speed > 30 && !k.out) for (const o of karts) {
+    if (o === k || o.out) continue;
+    const dx = o.pos.x - k.pos.x, dz = o.pos.z - k.pos.z;
+    const fwd = dx * Math.sin(k.h) + dz * Math.cos(k.h), side = Math.abs(dx * Math.cos(k.h) - dz * Math.sin(k.h));
+    if (fwd > 3.5 && fwd < 15 && side < 2.6) { behind = true; break; }
+  }
+  k.draftT = behind ? k.draftT + dt : Math.max(0, k.draftT - dt * 2);
+  if (k.draftT > 1.6) { k.draftT = 0; k.boost = Math.max(k.boost, 1.1); if (k.isPlayer) { sfx.boost(); showMsg('¡REBUFO!', 0.8); achieve('rebufo'); } }
+  // Frutas de la cosecha
+  for (const fr of FRUITS) {
+    if (fr.off > 0 || k.jy > 1.5) continue;
+    const dx = k.pos.x - fr.x, dz = k.pos.z - fr.z;
+    if (dx * dx + dz * dz < 6) {
+      fr.off = 8; fr.mesh.visible = false;
+      if (k.fruits < 10) { k.fruits++; if (k.isPlayer) { sfx.box(); if (k.fruits === 10) achieve('cosecha'); } }
+    }
+  }
 }
+let tricksDone = 0;
+function launch(k, v) {
+  k.jv = v; k.jy = 0.01;
+  if (!k.isPlayer && Math.random() < k.aiSkill) startTrick(k);
+}
+function startTrick(k) { k.trick = true; k.trickT = 0.45; }
 
 const aheadOf = (k, i, max) => { const d = (i - k.idx + N) % N; return d > 4 && d < max; };
 function aiControl(k, dt) {
@@ -1378,7 +1468,8 @@ function enableTilt() {
 function applyControlClass() { document.body.classList.toggle('tilt', tiltOn()); $('tiltOpts').hidden = !tiltOn(); }
 
 function syncMesh(k, dt) {
-  k.root.position.set(k.pos.x, k.pos.y, k.pos.z);
+  k.root.position.set(k.pos.x, k.pos.y + (k.jy || 0), k.pos.z);
+  if (k.trickT > 0) { k.trickT -= dt; k.vis.rotation.z = (1 - Math.max(0, k.trickT) / 0.45) * TAU; if (k.trickT <= 0) k.vis.rotation.z = 0; }
   k.root.rotation.order = 'YXZ'; k.root.rotation.y = k.h;
   k.root.rotation.x += (-(k.slope || 0) - k.root.rotation.x) * Math.min(1, dt * 8 || 1);
   if (k.hop > 0) { k.hop -= dt; k.vis.position.y = Math.sin((0.22 - k.hop) / 0.22 * Math.PI) * 0.7; } else k.vis.position.y = k.offroad ? Math.sin(raceT * 40 + k.id) * 0.06 : 0;
@@ -1395,6 +1486,10 @@ function syncMesh(k, dt) {
 
 /* ---------- Objetos en pista ---------- */
 function updateObjects(dt) {
+  for (const fr of FRUITS) {
+    if (fr.off > 0) { fr.off -= dt; if (fr.off <= 0) fr.mesh.visible = true; continue; }
+    fr.ph += dt * 2.5; fr.mesh.position.y = fr.y + Math.sin(fr.ph) * 0.25; fr.mesh.rotation.y += dt * 2;
+  }
   for (const b of boxes) {
     b.ph += dt * 2;
     if (b.off > 0) { b.off -= dt; if (b.off <= 0) b.mesh.visible = true; continue; }
@@ -1424,6 +1519,7 @@ function updateObjects(dt) {
     b.t += dt;
     for (const k of karts) {
       if (k === b.owner && b.t < 0.6) continue;
+      if (k.jy > 1.2) continue;
       const dx = k.pos.x - b.pos.x, dz = k.pos.z - b.pos.z;
       if (dx * dx + dz * dz < 5.5) { spinOut(k); scene.remove(b.mesh); return false; }
     }
@@ -1564,6 +1660,7 @@ function updateHUD(dt) {
   $('lap').textContent = lapN;
   $('time').textContent = fmt(player.finished ? player.time : raceT);
   $('kmh').textContent = Math.max(0, Math.round(player.speed * 2.3));
+  $('fruits').textContent = player.fruits || 0;
   boardT -= dt;
   if (boardT <= 0) {
     boardT = 0.2;
@@ -1612,7 +1709,16 @@ function frame(now) {
     countT -= dt;
     const after = Math.ceil(countT - 0.6);
     if (after !== before && after >= 1 && after <= 3) { showMsg(String(after), 0.9); sfx.count(); if (after === 2 && tiltOn()) calibrate(); }
-    if (countT <= 0.6) { state = 'race'; showMsg('¡YA!', 0.9); sfx.go(); }
+    const rocketIn = input.gas || input.drift;
+    if (rocketIn && player.rocketT == null) player.rocketT = countT;
+    if (countT <= 0.6) {
+      state = 'race'; showMsg('¡YA!', 0.9); sfx.go();
+      const t = player.rocketT;                                  // salida turbo: pulsar justo en el «2»
+      if (t != null && t > 2.6) { player.stall = 1.0; showMsg('¡CALADO!', 1); }
+      else if (t != null && t > 1.0 && t <= 2.1) { player.boost = 1.6; player.speed = 30; showMsg('¡SALIDA TURBO!', 1.2); sfx.boost(); achieve('cohete'); }
+      else if (t != null) { player.boost = 0.6; }
+      for (const k of karts) if (!k.isPlayer && !k.out && Math.random() < k.aiSkill) k.boost = rnd(0.6, 1.4);
+    }
     karts.forEach(k => syncMesh(k, dt));
     if (activity !== 'libre') updateRows(0);
     updateHUD(dt);
@@ -1704,7 +1810,8 @@ function startRace() {
 function reallyStartRace() {
   $('controlChoice').hidden = true;
   initAudio(); enableTilt();
-  if (tiltOn()) toast('Sujeta el móvil recto, en tu postura cómoda: se calibra en la cuenta atrás.', 3.2);
+  if (tiltOn()) toast('Sujeta el móvil recto, en tu postura cómoda: se calibra en la cuenta atrás. Truco: pulsa DERRAPE justo en el «2» para salir con turbo.', 4);
+  else toast(touchMode ? 'Truco: pulsa DERRAPE justo cuando salga el «2» para salir con turbo.' : 'Truco: pulsa ↑ justo cuando salga el «2» para salir con turbo.', 3.2);
   $('menu').hidden = true; $('results').hidden = true; $('pause').hidden = true; paused = false;
   $('hud').hidden = false;
   resetRace(); state = 'countdown';
