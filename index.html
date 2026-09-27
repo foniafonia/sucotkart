@@ -374,6 +374,7 @@ const ITEM_UNLOCKS = [
   { id: 'rayo',     name: 'Arma: Rayo',     icon: '🌩️', weight: 2, need: 10, lore: 'Ya sabes aturdir a quien vaya delante.' },
   { id: 'hadas',    name: 'Arma: Hadas',    icon: '🌿', weight: 2, need: 20, lore: 'Al que le da se le nubla la vista un ratito.' },
   { id: 'estrella', name: 'Arma: Estrella', icon: '⭐', weight: 2, need: 30, lore: 'Unos segundos en los que nada te para.' },
+  { id: 'arava',    name: 'Arma: Aravá',    icon: '🍃', weight: 2, need: 40, lore: 'Completas las cuatro especies: se enreda y frena a quien le da.' },
 ];
 function activeItems() {
   return ITEMS.concat(ITEM_UNLOCKS.filter(it => totalStars >= it.need));
@@ -470,6 +471,27 @@ const grassTex = tex(128, 128, (g, w, h) => { g.fillStyle = '#6cbf4a'; g.fillRec
 grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping; grassTex.repeat.set(90, 90);
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(4200, 4200), new THREE.MeshLambertMaterial({ map: grassTex }));
 ground.rotation.x = -Math.PI / 2; ground.position.y = -0.02; scene.add(ground);
+
+// Barro en la pista (frena) y rampas de aceleración en la arena (impulsan)
+const mudTex = tex(64, 64, (g, w, h) => { g.fillStyle = '#5b4326'; g.fillRect(0, 0, w, h); noise(g, w, h, 400, ['#4a3620', '#6b4f2e', '#3f2e1a']); });
+const mudMat = new THREE.MeshLambertMaterial({ map: mudTex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+const boostTex = tex(64, 64, (g, w, h) => {
+  g.fillStyle = '#ff8a1f'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#ffd23f';
+  for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(w / 2, i * 16); g.lineTo(w / 2 - 14, i * 16 + 8); g.lineTo(w / 2 + 14, i * 16 + 8); g.closePath(); g.fill(); }
+});
+const boostMat = new THREE.MeshBasicMaterial({ map: boostTex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+const MUD_SPOTS = [], BOOST_SPOTS = [];
+for (const f of [0.30, 0.62]) {
+  const i = Math.floor(f * N), p = at(i, 0), m = new THREE.Mesh(new THREE.PlaneGeometry(6, 9), mudMat);
+  m.rotation.x = -Math.PI / 2; m.rotation.z = headingAt(i); m.position.set(p.x, 0.02, p.z); scene.add(m);
+  MUD_SPOTS.push({ x: p.x, z: p.z, r: 3.6 });
+}
+for (const f of [0.15, 0.48, 0.80]) for (const s of [1, -1]) {
+  const i = Math.floor(f * N), p = at(i, s * 17), m = new THREE.Mesh(new THREE.PlaneGeometry(4, 7), boostMat);
+  m.rotation.x = -Math.PI / 2; m.rotation.z = headingAt(i); m.position.set(p.x, 0.02, p.z); scene.add(m);
+  BOOST_SPOTS.push({ x: p.x, z: p.z, r: 3 });
+}
 
 // Línea de salida
 const checkTex = tex(64, 16, (g) => { for (let x = 0; x < 16; x++) for (let y = 0; y < 4; y++) { g.fillStyle = (x + y) % 2 ? '#111' : '#fff'; g.fillRect(x * 4, y * 4, 4, 4); } });
@@ -639,6 +661,38 @@ const farFromTrack = (x, z, m) => { for (let i = 0; i < N; i += 4) { const dx = 
   scene.add(posts, roofs, fruits);
 }
 
+// Sinagogas decorativas a lo lejos, como un pueblo alrededor del circuito
+{
+  const N_SYN = 6;
+  const bodyG = new THREE.BoxGeometry(11, 7, 9);
+  const bodyM = new THREE.MeshLambertMaterial({ color: 0xdccba0, flatShading: true });
+  const domeG = new THREE.SphereGeometry(4, 12, 8, 0, TAU, 0, Math.PI / 2);
+  const domeM = new THREE.MeshLambertMaterial({ color: 0x4a7a9c, flatShading: true });
+  const starTex = tex(128, 128, (g, w, h) => {
+    g.fillStyle = '#fff8e7'; g.beginPath(); g.arc(w / 2, h / 2, w / 2 - 4, 0, TAU); g.fill();
+    g.strokeStyle = '#1f6fd1'; g.lineWidth = 5;
+    const star = (cx, cy, r, rot) => {
+      g.beginPath();
+      for (let i = 0; i <= 3; i++) { const a = rot + i * TAU / 3; const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a); i === 0 ? g.moveTo(x, y) : g.lineTo(x, y); }
+      g.stroke();
+    };
+    star(w / 2, h / 2, w * 0.32, -Math.PI / 2); star(w / 2, h / 2, w * 0.32, Math.PI / 2);
+  });
+  const starM = new THREE.MeshBasicMaterial({ map: starTex, transparent: true });
+  let placedS = 0, guardS = 0;
+  while (placedS < N_SYN && guardS++ < 3000) {
+    const x = rnd(-650, 700), z = rnd(-700, 620);
+    if (!farFromTrack(x, z, WALL + 40)) continue;
+    const rot = rnd(0, TAU);
+    const body = new THREE.Mesh(bodyG, bodyM); body.position.set(x, 3.5, z); body.rotation.y = rot; scene.add(body);
+    const dome = new THREE.Mesh(domeG, domeM); dome.position.set(x, 7, z); dome.rotation.y = rot; scene.add(dome);
+    const star = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), starM);
+    star.position.set(x + Math.sin(rot) * 4.55, 4, z + Math.cos(rot) * 4.55); star.rotation.y = rot;
+    scene.add(star);
+    placedS++;
+  }
+}
+
 /* ---------- Karts ---------- */
 const lam = c => new THREE.MeshLambertMaterial({ color: c });
 const DARK = lam(0x23252e), METAL = lam(0x9aa0ad), TIRE = lam(0x1a1a1f), SKIN = lam(0xf1c7a3);
@@ -690,7 +744,7 @@ function makeKart(pilot) {
 const karts = PILOTS.map((p, i) => Object.assign(makeKart(p), {
   id: i, name: p.name, color: p.color, pos: new V3(), h: 0, speed: 0, idx: 0, lap: -1, prog: 0, lat: 0,
   offroad: false, drifting: false, driftDir: 0, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0,
-  isPlayer: false, finished: false, time: 0, skill: 1, base: 1, lane: 0, laneT: 0, laneTarget: 0, itemT: 0, invincible: 0, blind: 0,
+  isPlayer: false, finished: false, time: 0, skill: 1, base: 1, lane: 0, laneT: 0, laneTarget: 0, itemT: 0, invincible: 0, blind: 0, slowT: 0,
 }));
 
 /* ---------- Cajas y objetos ---------- */
@@ -757,6 +811,8 @@ const shellG = new THREE.SphereGeometry(1, 12, 10);         // etrog (cidra)
 const shellM = lam(0xe8c93a), shellBase = lam(0x9a7a1f);
 const hadasG = new THREE.SphereGeometry(0.32, 6, 5);        // hoja de hadas (mirto)
 const hadasM = lam(0x2f6b2f);
+const aravaG = new THREE.CylinderGeometry(0.05, 0.05, 1.3, 5); // rama de aravá (sauce)
+const aravaM = lam(0x6a8f4a);
 let bananas = [], shells = [];
 
 function pickItem() {
@@ -791,6 +847,13 @@ function useItem(k) {
     const g = new THREE.Group();
     for (const [dx, dz] of [[0, 0], [0.22, 0.12], [-0.22, -0.1]]) { const l = new THREE.Mesh(hadasG, hadasM); l.position.set(dx, dz, 0); g.add(l); }
     scene.add(g); shells.push({ mesh: g, s: k.idx + (back ? -3 : 3), dir: back ? -1 : 1, lat: k.lat, owner: k, life: 7, t: 0, effect: 'blind' });
+    if (k.isPlayer) sfx.shoot();
+  }
+  if (it === 'arava') {                   // enreda y frena al que le da, sin girarlo
+    const back = k.isPlayer ? input.brake : false;
+    const g = new THREE.Group();
+    for (const rot of [0, 1.2, -1.2, 2.4]) { const l = new THREE.Mesh(aravaG, aravaM); l.rotation.z = rot; g.add(l); }
+    scene.add(g); shells.push({ mesh: g, s: k.idx + (back ? -3 : 3), dir: back ? -1 : 1, lat: k.lat, owner: k, life: 7, t: 0, effect: 'slow' });
     if (k.isPlayer) sfx.shoot();
   }
   if (it === 'estrella') {                // invencible y a tope de velocidad un rato
@@ -958,7 +1021,7 @@ function resetRace() {
     k.idx = N - 6 - row * 5 - colm * 2;
     k.lat = colm ? -5 : 5;
     k.pos.copy(at(k.idx, k.lat)); k.h = headingAt(k.idx);
-    Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0, invincible: 0, blind: 0 });
+    Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0, invincible: 0, blind: 0, slowT: 0 });
     k.isPlayer = k === player;
     k.base = k.isPlayer ? (KART_TIERS.find(t => t.id === kartTierId) || KART_TIERS[0]).mult : DIFF[diff] + rnd(-0.03, 0.03) + (slot < 4 ? 0.015 : 0);
     k.skill = k.base;
@@ -989,9 +1052,11 @@ function updateTrack(k) {
   }
 }
 
+function nearSpot(spots, x, z) { for (const s of spots) { const dx = x - s.x, dz = z - s.z; if (dx * dx + dz * dz < s.r * s.r) return true; } return false; }
 function physics(k, c, dt) {
   if (k.invincible > 0) k.invincible -= dt;
   if (k.blind > 0) k.blind -= dt;
+  if (k.slowT > 0) k.slowT -= dt;
   if (k.spin > 0) {
     k.spin -= dt; k.speed *= Math.pow(0.15, dt);
     k.vis.rotation.y += dt * 13;
@@ -1000,6 +1065,9 @@ function physics(k, c, dt) {
     if (k.invincible > 0) { max = 80; }
     else if (k.boost > 0) { max = 78; k.boost -= dt; }
     else if (c.throttle != null) max *= c.throttle;
+    if (k.slowT > 0) max *= 0.45;
+    if (nearSpot(MUD_SPOTS, k.pos.x, k.pos.z)) max *= 0.35;
+    if (nearSpot(BOOST_SPOTS, k.pos.x, k.pos.z)) k.boost = Math.max(k.boost, 1.2);
     if (c.gas) k.speed += (k.boost > 0 ? 70 : 27) * dt;
     else if (c.brake) k.speed -= (k.speed > 0 ? 48 : 14) * dt;
     else k.speed -= Math.sign(k.speed) * Math.min(Math.abs(k.speed), 11 * dt);
@@ -1187,6 +1255,7 @@ function updateObjects(dt) {
       const dx = k.pos.x - s.mesh.position.x, dz = k.pos.z - s.mesh.position.z;
       if (dx * dx + dz * dz < 7) {
         if (s.effect === 'blind') { if (k.invincible <= 0) k.blind = 3.5; if (k.isPlayer) sfx.hit(); }
+        else if (s.effect === 'slow') { if (k.invincible <= 0) k.slowT = 3; if (k.isPlayer) sfx.hit(); }
         else spinOut(k);
         scene.remove(s.mesh); return false;
       }
