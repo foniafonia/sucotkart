@@ -2364,22 +2364,25 @@ function enableTouch() {
 if (window.matchMedia && matchMedia('(pointer:coarse)').matches) enableTouch();
 addEventListener('touchstart', enableTouch, { passive: true });
 // iOS ignora user-scalable=no: bloquea el zoom de página por pellizco o doble toque
-['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
-document.addEventListener('touchmove', e => { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
-document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });   // dos dedos a la vez: nada de pellizco
+// Solo se bloquea ampliar; si la pantalla ya está ampliada se deja pellizcar o tocar dos veces para volver
+const zoomed = () => ((window.visualViewport && visualViewport.scale) || 1) > 1.02;
+['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => { if (!zoomed()) e.preventDefault(); }, { passive: false }));
+document.addEventListener('touchmove', e => { if (!zoomed() && (e.touches.length > 1 || (e.scale && e.scale !== 1))) e.preventDefault(); }, { passive: false });
+document.addEventListener('touchstart', e => { if (!zoomed() && e.touches.length > 1) e.preventDefault(); }, { passive: false });   // dos dedos a la vez: nada de pellizco
 // Si Safari se ha quedado ampliado (lo recuerda aunque recargues), vuelve al tamaño normal
 function unzoom() {
   const vv = window.visualViewport; if (!vv || vv.scale <= 1.02) return;
   const m = $('vp'), c = m.content;
   m.content = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no';
-  setTimeout(() => { m.content = c; if (vv.scale > 1.02) toast('La pantalla está ampliada: pellizca hacia dentro para verla entera.', 4); }, 300);
+  setTimeout(() => { m.content = c; if (vv.scale > 1.02 && !unzoom.warned) { unzoom.warned = true; toast('La pantalla está ampliada: pellizca hacia dentro o toca dos veces para verla entera.', 5); } }, 300);
 }
 if (window.visualViewport) visualViewport.addEventListener('resize', () => setTimeout(unzoom, 250));
-setTimeout(unzoom, 600);
+setTimeout(unzoom, 600); setTimeout(unzoom, 2000);
+setInterval(() => { if (state !== 'race') unzoom(); }, 4000);
 let lastTouchEnd = 0;
 document.addEventListener('touchend', e => {
   const now = Date.now();
-  if (now - lastTouchEnd < 400 && !e.target.closest('input, textarea, select')) e.preventDefault();
+  if (now - lastTouchEnd < 400 && !zoomed() && !e.target.closest('input, textarea, select')) e.preventDefault();
   lastTouchEnd = now;
 }, { passive: false });
 function hold(id, key) {
