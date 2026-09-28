@@ -2531,6 +2531,7 @@ $('loading').hidden = true; $('menu').hidden = false;
 requestAnimationFrame(t => { last = t; frame(t); });
 // Contador de visitas anónimo (sin cuentas, sin cookies, solo suma 1 por apertura del juego)
 if (window.fetch) fetch('https://abacus.jasoncameron.dev/hit/foniafonia-juegos/sucotkart_aperturas').catch(() => {});
+if (window.fetch && !store.get('contado', false)) fetch('https://abacus.jasoncameron.dev/hit/foniafonia-juegos/sucotkart_moviles').then(() => store.set('contado', true)).catch(() => {});
 })();
 </script>
 </body>
