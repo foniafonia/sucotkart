@@ -2024,6 +2024,8 @@ function frame(now) {
     renderer.render(scene, camera); return;
   }
 
+  if (state === 'done') { renderer.render(scene, camera); return; }
+
   if (state === 'countdown') {
     const before = Math.ceil(countT - 0.6);
     countT -= dt;
