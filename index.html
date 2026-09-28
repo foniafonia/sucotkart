@@ -157,6 +157,7 @@
   <div class="tl">
     <div class="lap big"><span id="lapLabel">VUELTA</span> <b id="lap">1</b><span id="lapOf">/3</span></div>
     <div class="time" id="time">0:00.00</div>
+    <div class="time" id="fruitBox">🍎 <b id="fruits">0</b>/10</div>
     <canvas id="mini" width="236" height="236"></canvas>
   </div>
   <div class="item" id="item" aria-label="Objeto"></div>
@@ -164,7 +165,6 @@
   <div class="board" id="board"></div>
   <div class="topbtns"><button class="iconbtn" id="pauseBtn" aria-label="Pausa">II</button></div>
   <div class="br">
-    <div class="speed" id="fruitBox" style="margin-bottom:2px">🍎 <b id="fruits">0</b>/10</div>
     <div class="speed"><b id="kmh">0</b>km/h</div>
     <div class="pos big" id="pos">5<sup>º</sup></div>
   </div>
@@ -606,7 +606,7 @@ const FRUITS = [];
       const g = new THREE.Group(); g.add(new THREE.Mesh(fg, new THREE.MeshLambertMaterial({ color: cols[(gi + j) % cols.length] })));
       const lf = new THREE.Mesh(leafG, leafM); lf.position.y = 0.6; g.add(lf);
       g.position.copy(p); scene.add(g);
-      FRUITS.push({ mesh: g, x: p.x, z: p.z, y: p.y, off: 0, ph: Math.random() * TAU });
+      FRUITS.push({ mesh: g, x: p.x, z: p.z, y: p.y, off: 0, ph: Math.random() * TAU, i, lat: lat + (j % 2 ? 1.5 : -1.5) });
     }
   });
 }
@@ -1583,7 +1583,7 @@ function startTrick(k) { k.trick = true; k.trickT = 0.45; }
 
 const aheadOf = (k, i, max) => { const d = (i - k.idx + N) % N; return d > 4 && d < max; };
 function aiControl(k, dt) {
-  const look = 9 + Math.floor(Math.abs(k.speed) * 0.3);
+  const look = 6 + Math.floor(Math.abs(k.speed) * 0.12);
   const j = (k.idx + look) % N;
   const t1 = tan[k.idx], t2 = tan[(k.idx + 30) % N];
   const curv = 1 - (t1.x * t2.x + t1.z * t2.z);
@@ -1591,22 +1591,26 @@ function aiControl(k, dt) {
   k.laneT -= dt;
   const pad = BOOST_SPOTS.find(b => Math.abs(b.lat) <= HW && aheadOf(k, b.i, 70));
   const mud = MUD_SPOTS.find(m => aheadOf(k, m.i, 45));
+  const fruit = k.fruits < 10 && k.aiSkill > 0.3 ? FRUITS.find(fr => fr.off <= 0 && aheadOf(k, fr.i, 40)) : null;
   if (pad && k.aiSkill > 0.4) k.laneTarget = pad.lat;                // va a por las rampas de turbo
   else if (mud) k.laneTarget = k.lane >= 0 ? 8 : -8;                  // esquiva el barro
+  else if (fruit) k.laneTarget = fruit.lat;                           // va a por las frutas
   else if (curv > 0.05) k.laneTarget = -turnSide * 7;                 // se pega al interior de la curva
   else if (k.laneT < 0) { k.laneT = rnd(1.5, 4); k.laneTarget = rnd(-6, 6); }
   k.lane += (k.laneTarget - k.lane) * Math.min(1, dt * 1.6);
-  const tp = at(j, k.lane);
+  const tp = at(j, clamp(k.lane + (k.lane - k.lat) * 0.6, -HW + 1, HW - 1));   // corrige si se va hacia fuera
   const desired = Math.atan2(tp.x - k.pos.x, tp.z - k.pos.z);
   const diffA = wrapA(desired - k.h);
   const steer = clamp(-diffA * 2.8, -1, 1);
   const gap = (player.prog - k.prog) / N;
-  k.skill = k.base + clamp(gap * 0.3, -0.06, 0.16);                   // si se quedan atrás aprietan; si van muy por delante, aflojan un poco
+  k.skill = k.base + clamp(gap * 0.3, -0.1, 0.16);                   // si se quedan atrás aprietan; si van muy por delante, aflojan un poco
   const limit = 52 * k.skill * CC() * (1 - clamp(curv * 1.1, 0, 0.22));
   if (curv < 0.02 && k.prevCurv > 0.12 && Math.random() < k.aiSkill) k.boost = Math.max(k.boost, 0.8);   // mini-turbo al salir de la curva
   k.prevCurv = curv;
+  if (learnOn()) for (const r of rows) if (r.idx === k.idx || (r.idx - k.idx + N) % N === 1) { if (k.rowT !== r.idx) { k.rowT = r.idx; if (Math.random() < k.aiSkill) k.boost = Math.max(k.boost, 1.3); } }
   if (k.item) { k.itemT -= dt; if (k.itemT <= 0) useItem(k); }
-  return { gas: k.speed < limit, brake: k.speed > limit + 10, steer, drift: false };
+  const cap = k.boost > 0 || k.invincible > 0 ? 90 : limit;           // con turbo no levanta el pie
+  return { gas: k.speed < cap, brake: k.speed > cap + 10, steer, drift: false };
 }
 
 function playerControl() {
