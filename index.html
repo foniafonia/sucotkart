@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" id="vp" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" id="vp" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Sucot Kart</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,6 +21,7 @@
     --body:"Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   [hidden]{display:none!important}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   html,body{height:100%;margin:0;overflow:hidden;touch-action:none;overscroll-behavior:none;background:var(--ink);color:var(--cream);font-family:var(--body);}
   body{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;}
   #c{position:fixed;inset:0;width:100%;height:100%;display:block;}
@@ -2370,13 +2371,19 @@ const zoomed = () => ((window.visualViewport && visualViewport.scale) || 1) > 1.
 document.addEventListener('touchmove', e => { if (!zoomed() && (e.touches.length > 1 || (e.scale && e.scale !== 1))) e.preventDefault(); }, { passive: false });
 document.addEventListener('touchstart', e => { if (!zoomed() && e.touches.length > 1) e.preventDefault(); }, { passive: false });   // dos dedos a la vez: nada de pellizco
 // Si Safari se ha quedado ampliado (lo recuerda aunque recargues), vuelve al tamaño normal
-function unzoom() {
-  const vv = window.visualViewport; if (!vv || vv.scale <= 1.02) return;
-  const m = $('vp'), c = m.content;
-  m.content = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no';
-  setTimeout(() => { m.content = c; if (vv.scale > 1.02 && !unzoom.warned) { unzoom.warned = true; toast('La pantalla está ampliada: pellizca hacia dentro o toca dos veces para verla entera.', 5); } }, 300);
+const VP = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no';
+function unzoom(force) {
+  const vv = window.visualViewport;
+  if (!force && (!vv || vv.scale <= 1.02)) return;
+  const m = $('vp');                                   // reescribir la etiqueta obliga a iOS a volver a escala 1
+  m.content = VP.replace('initial-scale=1', 'initial-scale=1.0001');
+  requestAnimationFrame(() => { m.content = VP; });
+  setTimeout(() => { if (vv && vv.scale > 1.02 && !unzoom.warned) { unzoom.warned = true; toast('La pantalla está ampliada: pellizca hacia dentro o toca dos veces para verla entera.', 5); } }, 500);
 }
 if (window.visualViewport) visualViewport.addEventListener('resize', () => setTimeout(unzoom, 250));
+addEventListener('orientationchange', () => { setTimeout(() => unzoom(true), 150); setTimeout(() => unzoom(true), 600); });
+if (window.screen && screen.orientation) screen.orientation.addEventListener('change', () => setTimeout(() => unzoom(true), 300));
+addEventListener('pageshow', () => setTimeout(() => unzoom(true), 100));
 setTimeout(unzoom, 600); setTimeout(unzoom, 2000);
 setInterval(() => { if (state !== 'race') unzoom(); }, 4000);
 let lastTouchEnd = 0;
