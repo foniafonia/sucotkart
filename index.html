@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" id="vp" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Sucot Kart</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -885,9 +885,10 @@ const DARK = lam(0x23252e), METAL = lam(0x9aa0ad), TIRE = lam(0x1a1a1f), SKIN = 
 const WOOD = lam(0x8b5a2b), GOLD = lam(0xd9b440), CREAM = lam(0xfff8e7), SCHACH = lam(0x5f8a2e), LEATHER = lam(0x111114);
 const talitTex = tex(64, 64, (g, w, h) => {      // talit blanco con franjas negras
   g.fillStyle = '#fbfaf4'; g.fillRect(0, 0, w, h);
-  g.fillStyle = '#1b1b24'; for (const y of [38, 46, 54]) g.fillRect(0, y, w, y === 46 ? 5 : 3);
+  g.fillStyle = '#16161e'; for (const [y, hh] of [[33, 4], [41, 8], [53, 4]]) g.fillRect(0, y, w, hh);
 });
 const TALIT = new THREE.MeshLambertMaterial({ map: talitTex, side: THREE.DoubleSide });
+const TALIT_TOP = new THREE.MeshLambertMaterial({ color: 0xfbfaf4, side: THREE.DoubleSide });
 const shinTex = tex(64, 64, (g, w, h) => { g.fillStyle = '#111114'; g.fillRect(0, 0, w, h); g.fillStyle = '#e8c547'; g.font = 'bold 50px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('ש', w / 2, h / 2 + 3); });
 const SHIN = new THREE.MeshLambertMaterial({ map: shinTex });
 const parojetTex = tex(64, 96, (g, w, h) => {
@@ -898,14 +899,15 @@ const parojetTex = tex(64, 96, (g, w, h) => {
 });
 const PAROJET = new THREE.MeshLambertMaterial({ map: parojetTex });
 function addTalit(add) {                           // talit gadol sobre los hombros, con atará y tzitzit
-  const cloth = add(new THREE.CylinderGeometry(0.62, 0.8, 0.95, 16, 4, true), TALIT, 0, 1.85, -0.6);
+  add(new THREE.CylinderGeometry(0.62, 0.72, 0.4, 16, 1, true), TALIT_TOP, 0, 2.12, -0.6);   // sobre los hombros
+  const cloth = add(new THREE.PlaneGeometry(1.6, 0.95, 6, 4), TALIT, 0, 1.9, -1.4);           // manto que cae por la espalda
   const base = Float32Array.from(cloth.geometry.attributes.position.array);
-  const glowM = new THREE.MeshLambertMaterial({ color: 0xfff8e7, emissive: 0x000000 });
-  add(new THREE.TorusGeometry(0.52, 0.09, 6, 16), glowM, 0, 2.3, -0.6).rotation.x = Math.PI / 2;
-  add(new THREE.BoxGeometry(0.5, 0.12, 0.08), GOLD, 0, 2.28, -0.05);            // atará bordada
-  const fg = new THREE.CylinderGeometry(0.03, 0.03, 0.45, 4); fg.translate(0, -0.225, 0);   // pivote arriba
-  const fringes = [];
-  for (const x of [0.55, -0.55]) for (const z of [-0.1, -1.1]) fringes.push(add(fg, CREAM, x, 1.45, z));
+  const glowM = new THREE.MeshLambertMaterial({ color: 0xd9b440, emissive: 0x000000 });
+  add(new THREE.BoxGeometry(1.1, 0.17, 0.08), glowM, 0, 2.33, -1.38);          // atará dorada arriba del manto
+  add(new THREE.TorusGeometry(0.5, 0.08, 6, 16), CREAM, 0, 2.32, -0.6).rotation.x = Math.PI / 2;
+  const fg = new THREE.CylinderGeometry(0.035, 0.035, 0.6, 4); fg.translate(0, -0.3, 0);   // pivote arriba
+  const fringes = [-0.78, 0.78].map(x => add(fg, CREAM, x, 1.425, -1.4));
+  for (const x of [0.5, -0.5]) fringes.push(add(fg, CREAM, x, 1.8, -0.05));    // los de delante
   return { cloth, base, glowM, fringes };
 }
 // El talit ondea hacia atrás con la velocidad; los tzitzit se balancean en las curvas
@@ -914,15 +916,17 @@ function animateTalit(k, dt) {
   const t = performance.now() / 1000, pos = tl.cloth.geometry.attributes.position, a = pos.array, b = tl.base;
   if (Math.abs(f - (tl.lastF || 0)) > 0.01 || f > 0.05) {
     for (let v = 0; v < a.length; v += 3) {
-      const x = b[v], y = b[v + 1], z = b[v + 2];
-      const down = (0.475 - y) / 0.95, back = Math.max(0, -z / 0.75);
-      const wave = Math.sin(t * 14 + y * 6 + x * 3) * 0.07 * f * down;
-      a[v] = x; a[v + 1] = y + f * 0.35 * down * back; a[v + 2] = z - f * 0.9 * down * back + wave;
+      const x = b[v], y = b[v + 1], d = Math.pow((0.475 - y) / 0.95, 1.5);
+      const wave = Math.sin(t * 13 + y * 5 + x * 3) * 0.1 * f * d;
+      a[v] = x; a[v + 1] = y + f * 0.45 * d; a[v + 2] = -f * 1.1 * d + wave;
     }
     pos.needsUpdate = true; tl.lastF = f;
   }
   const lean = clamp(k.vis.rotation.y * 1.6, -0.7, 0.7);
-  tl.fringes.forEach((fr, j) => { fr.rotation.x = f * 1.1 + Math.sin(t * 18 + j) * 0.12 * f; fr.rotation.z = lean; });
+  tl.fringes.forEach((fr, j) => {
+    if (j < 2) fr.position.set(j ? 0.78 : -0.78, 1.425 + f * 0.45, -1.4 - f * 1.1);   // cuelgan de las esquinas del manto
+    fr.rotation.x = f * 1.1 + Math.sin(t * 18 + j) * 0.12 * f; fr.rotation.z = lean;
+  });
   const glow = k.invincible > 0 || k.boost > 0;
   tl.glowM.emissive.setHex(glow ? (Math.floor(t * 8) % 2 ? 0xffd23f : 0x5ad1ff) : 0x000000);
 }
@@ -2146,6 +2150,7 @@ function startRace() {
   reallyStartRace();
 }
 function reallyStartRace() {
+  unzoom();
   if (mode === 'gp') {
     if (!gp) { const un = worldsUnlocked().map(w => w.id); gp = { race: 0, pts: {}, worlds: [0, 1, 2, 3].map(i => un[i % un.length]) }; store.set('gp', gp); }
     const wid = gp.worlds[gp.race];
@@ -2361,6 +2366,16 @@ addEventListener('touchstart', enableTouch, { passive: true });
 // iOS ignora user-scalable=no: bloquea el zoom de página por pellizco o doble toque
 ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
 document.addEventListener('touchmove', e => { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
+document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });   // dos dedos a la vez: nada de pellizco
+// Si Safari se ha quedado ampliado (lo recuerda aunque recargues), vuelve al tamaño normal
+function unzoom() {
+  const vv = window.visualViewport; if (!vv || vv.scale <= 1.02) return;
+  const m = $('vp'), c = m.content;
+  m.content = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no';
+  setTimeout(() => { m.content = c; if (vv.scale > 1.02) toast('La pantalla está ampliada: pellizca hacia dentro para verla entera.', 4); }, 300);
+}
+if (window.visualViewport) visualViewport.addEventListener('resize', () => setTimeout(unzoom, 250));
+setTimeout(unzoom, 600);
 let lastTouchEnd = 0;
 document.addEventListener('touchend', e => {
   const now = Date.now();
