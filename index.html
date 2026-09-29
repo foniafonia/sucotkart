@@ -2187,6 +2187,7 @@ function frame(now) {
 /* ---------- Pantallas ---------- */
 function showResults() {
   state = 'done';
+  if (window.fetch) fetch('https://abacus.jasoncameron.dev/hit/foniafonia-juegos/sucotkart_carreras').catch(() => {});
   const r = ranking();
   const avg = 44;
   const rows = r.map((k, i) => {
