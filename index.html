@@ -246,6 +246,7 @@
       <div class="toggles"><button class="ghost" id="voiceBtn">Voz: sí</button><button class="ghost" id="caseBtn" hidden>Letra: MAYÚSCULA</button></div>
       <button class="go" id="goBtn">¡A CORRER!</button>
       <button class="ghost" id="albumBtn">🏅 Logros, álbum y colecciones</button>
+      <button class="ghost" id="feedbackBtn">📣 ¿Algo no va bien? Avísanos</button>
       <button class="ghost" id="fsBtn" hidden>⛶ Pantalla completa</button>
       <div class="learnres" id="installTip" hidden style="text-align:center">📲 <b>Para jugar sin barras del navegador:</b> pulsa <b>Compartir</b> (el cuadrado con la flecha ⬆️) y luego <b>«Añadir a pantalla de inicio»</b>. Se abrirá como una app, a pantalla completa.<br><small style="opacity:.75">Ojo: la app guarda sus propias estrellas, empieza desde cero.</small></div>
       <p class="help" id="actHelp"></p>
@@ -2415,6 +2416,21 @@ renderTitle();
 // Pantalla completa: en iPhone solo instalándolo en la pantalla de inicio; en Android/iPad, con el botón
 const standalone = (window.matchMedia && matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) || navigator.standalone;
 if (!standalone && /iPhone|iPod/.test(navigator.userAgent)) $('installTip').hidden = false;
+$('feedbackBtn').onclick = () => {
+  const cuerpo = `Cuéntanos qué ha pasado (puedes borrar esto y escribir lo tuyo):
+
+
+---
+No borres esto, nos ayuda a arreglarlo:
+Mundo: ${WORLD.name || WORLD.id}
+Modo: ${mode}
+Actividad: ${activity}
+Coche: ${kartTierId}
+Control: ${control}
+Estrellas: ${totalStars}
+Dispositivo: ${navigator.userAgent}`;
+  location.href = 'mailto:globalizafonia@gmail.com?subject=' + encodeURIComponent('Sucot Kart: algo no va bien') + '&body=' + encodeURIComponent(cuerpo);
+};
 const fsEl = document.documentElement;
 if (!standalone && (fsEl.requestFullscreen || fsEl.webkitRequestFullscreen) && !/iPhone|iPod/.test(navigator.userAgent)) {
   $('fsBtn').hidden = false;
